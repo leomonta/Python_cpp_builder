@@ -5,6 +5,17 @@
 # Link and compile usign the appropriate library and include path
 # Print out error and warning messages
 # add the args for the link and the compile process
+#
+# TODO compile and link files
+# TODO check for newer version of source files
+# TODO skip compilation or linking if there are no new or modified files
+# TODO check for newer versione of header files (check in every file if that header is included, if it is rebuild)
+# TODO error and warning coloring in the console
+# TODO if error occurs stop compilation and return 1
+# TODO retrive include dirs, libs and args from a file
+# TODO retrive target directories for exe, objects, include and source files
+
+
 
 """
 import subprocess
