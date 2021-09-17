@@ -58,16 +58,23 @@ def parse_config_json():
 	# base directory for ALL the other directories and files
 	projectDir = config_file["projectDir"]
 
-	# Directories
+	# --- Libraries path and names ---
+
+	# create the library args -> -lsomelib -lsomelib2 -l...
+	for lname in config_file["libraries"]:
+		libraries[0] += " -l" + lname
+
+	# create the libraries path args -> -Lsomelibrary/lib -L...
+	for Lname in config_file["Directories"]["libraryDir"]:
+		libraries[1] += " -L" + Lname
+	libraries[1] = libraries[1][1:] #remove first whitespace
+
+	# --- Include and Source Directories
+
 	# create the includes args -> -Iinclude -Isomelibrary/include -I...
 	for Idir in config_file["Directories"]["includeDir"]:
 		includes += "-I" + Idir + " "
 	includes = includes.removesuffix(" ")  # remove trailing space
-
-	# create the libraries path args -> -Lsomelibrary/lib -L...
-	for Lname in config_file["Directories"]["libraryDir"]:
-		libraries[1] += "-L" + Lname + " "
-	libraries[1] = libraries[1].removesuffix(" ")  # remove trailing space
 
 	# source dir where the source code file are located
 	srcDirs = config_file["Directories"]["sourceDir"]
@@ -76,16 +83,11 @@ def parse_config_json():
 	targetDir[1] = config_file["Directories"]["exeDir"]
 	targetDir[2] = config_file["exeName"]
 
-	# Arguments
+	# --- Compiling an linking arguments ---
 
 	# compiler and linker argument
 	args[0] = config_file["Arguments"]["Compiler"]
 	args[1] = config_file["Arguments"]["Linker"]
-
-	# create the library args -> -lsomelib -lsomelib2 -l...
-	for lname in config_file["libraries"]:
-		libraries[0] += "-l" + lname + " "
-	libraries[0] = libraries[0].removesuffix(" ")  # remove trailing space
 
 
 def main():
@@ -110,16 +112,45 @@ def main():
 			if (ext in source_files_extensions): # check if it is a source file
 				to_compile.append([source_directories, file_name, ext])
 
+
+	# --- Compiling ---
+
+	print(Fore.CYAN, " --- Compiling ---", Fore.WHITE)
+
 	# compile each file and show the output
 	for file in to_compile:
 		command = f"g++ {args[0]} {includes} -c -o {targetDir[0]}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
 		print(command)
 		res = exe_command(command)
 		if "error" in res[1]:
-			print(Fore.ERROR, res[0], res[1], Fore.ERROR)
+			print(Fore.RED, res[1], Fore.WHITE)
 		elif "warning" in res[1]:
-			print(Fore.YELLOW, res[0], res[1], Fore.WHITE)
+			print(Fore.YELLOW, res[1], Fore.WHITE)
 		else:
 			print(res[1])
+
+
+	# --- Linking ---
+
+	print(Fore.CYAN, " --- Linking ---", Fore.WHITE)
+
+	Link_cmd = f"g++ {args[1]} -o {targetDir[1]}/{targetDir[2]} {libraries[1]}"
+
+
+	for file in to_compile:
+		Link_cmd += f" {targetDir[0]}/{file[0]}{file[1]}.o"
+	
+	Link_cmd += libraries[0]
+
+	print(Link_cmd)
+	res = exe_command(Link_cmd)
+	
+	if "error" in res[1]:
+		print(Fore.RED, res[1], Fore.WHITE)
+	elif "warning" in res[1]:
+		print(Fore.YELLOW, res[1], Fore.WHITE)
+	else:
+		print(res[1])
+
 
 main()

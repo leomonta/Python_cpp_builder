@@ -4,14 +4,13 @@
 	"Directories": {
 		"includeDir": [
 			"include",
-			"ext/glm"
+			"ext"
 		],
 		"sourceDir": [
 			"src"
 		],
 		"libraryDir": [
-			"ext/glm/lib",
-			"ext/glew/lib"
+			"ext/raylib/lib"
 		],
 		"objectsDir": "objs",
 		"exeDir": "exe"
@@ -19,7 +18,7 @@
 	"libraries": [
 		"raylib",
 		"kernel32",
-		"user32l",
+		"user32",
 		"shell32",
 		"winmm",
 		"gdi32",
