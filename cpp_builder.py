@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.9
 # Building tool for cpp and hpp files
 # @Author Leonardo Montagner https://github.com/Vectoryx
 #
