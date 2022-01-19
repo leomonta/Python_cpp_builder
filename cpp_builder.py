@@ -32,6 +32,7 @@ args = ["", ""]
 libraries = ["", ""]
 includes = ""
 srcDirs = []
+compiler_exec = "g++"
 projectDir = ""
 # 0-> object target Directory, 1 -> exe target Directory, 2 -> exe name
 targetDir = ["", "", ""]
@@ -77,13 +78,16 @@ def parse_config_json() -> None:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	"""
-	global includes, projectDir, targetDir, args, libraries, srcDirs
+	global includes, compiler_exec, projectDir, targetDir, args, libraries, srcDirs
 
 	# load and parse the file
 	config_file = json.load(open("cpp_builder_config.json"))
 
 	# base directory for ALL the other directories and files
 	projectDir = config_file["projectDir"]
+
+	# get the compiler executable {gcc, g++, clang, etc}
+	compiler_exec = config_file["compilerExe"]
 
 	# --- Libraries path and names ---
 
@@ -189,11 +193,11 @@ def save_new_hashes() -> None:
 
 
 def compile(to_compile: list) -> bool:
-	global args, includes, targetDir
+	global args, includes, targetDir, compiler_exec
 	errors = 0
 
 	for file in to_compile:
-		command = f"g++ {args[0]} {includes} -c -o {targetDir[0]}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
+		command = f"{compiler_exec} {args[0]} {includes} -c -o {targetDir[0]}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -202,7 +206,7 @@ def compile(to_compile: list) -> bool:
 
 def link() -> bool:
 
-	global args, targetDir, libraries
+	global args, targetDir, libraries, compiler_exec
 
 	to_link = [] # contains directory and filename
 	# checking which file need to be compiled
@@ -220,7 +224,7 @@ def link() -> bool:
 				to_link.append([source_directory, file_name, ext])
 
 
-	Link_cmd = f"g++ {args[1]} -o {targetDir[1]}/{targetDir[2]} {libraries[1]}"
+	Link_cmd = f"{compiler_exec} {args[1]} -o {targetDir[1]}/{targetDir[2]} {libraries[1]}"
 
 	for file in to_link:
 		Link_cmd += f" {targetDir[0]}/{file[0]}{file[1]}.o"
@@ -259,7 +263,8 @@ def main():
 	print(Fore.GREEN, " --- Compiling ---", Fore.WHITE)
 
 	if not to_compile:
-		print(" --- Compilation skipped due to no new or modified files ---")
+		print("  --- Compilation and linking skipped due to no new or modified files ---")
+		sys.exit(1)
 
 
 	# compile each file and show the output,
