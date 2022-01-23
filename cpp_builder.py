@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.9
 # Building tool for cpp and hpp files
-# @Author Leonardo Montagner https://github.com/Vectoryx
+# @Author Leonardo Montagner https://github.com/leomonta/Python_cpp_builder
 #
 # Build only the modified files on a cpp project
 # Link and compile usign the appropriate library and include path
@@ -51,6 +51,7 @@ def print_stdout(mexage: tuple) -> bool:
 	for i in range(len(out)):
 		if "error" in out[i]:
 			print(Fore.RED, out[i])
+			print(Fore.WHITE)
 			return False
 		elif "warning" in out[i]:
 			print(Fore.BLUE, out[i])
@@ -264,7 +265,7 @@ def main():
 
 	if not to_compile:
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
-		sys.exit(1)
+		return
 
 
 	# compile each file and show the output,
