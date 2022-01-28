@@ -1,7 +1,7 @@
 {
 	"projectDir": "test",
 	"exeName": "game.exe",
-	"CompilerExe": "g++",
+	"compilerExe": "g++",
 	"Directories": {
 		"includeDir": [
 			"include",
@@ -16,13 +16,26 @@
 		"objectsDir": "objs",
 		"exeDir": "exe"
 	},
-	"libraries": [
-		"raylib",
-		"dl",
-		"pthread"
-	],
+	"libraries": {
+		"Debug": [
+			"raylib",
+			"dl",
+			"pthread"
+		],
+		"Release": [
+			"raylib",
+			"dl",
+			"pthread"
+		]
+	},
 	"Arguments": {
-		"Compiler": "-g3 -std=c++2a -Wshadow",
-		"Linker": "-g3"
+		"Debug": {
+			"Compiler": "-g3 -std=c++2a -Wshadow",
+			"Linker": "-g3"
+		},
+		"Release": {
+			"Compiler": "-O2 -std=c++2a",
+			"Linker": "-s"
+		}
 	}
 }
