@@ -20,22 +20,30 @@
 
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
-import json  # parse cpp_builder_config.json
+import json
+from xml.etree.ElementInclude import include  # parse cpp_builder_config.json
 from colorama import Fore, init
 import hashlib # for calculating hashes
 import sys # for arguments parsing
 
 
-# 0 -> compiler args, 1 -> linker args
-args = ["", ""]
-# 0 -> the library to link with (-l), 1 -> the libraries path (-L)
-libraries = ["", ""]
-includes = ""
-srcDirs = []
-compiler_exec = "g++"
-projectDir = ""
-# 0-> object target Directory, 1 -> exe target Directory, 2 -> exe name
-targetDir = ["", "", ""]
+compilation_variables = {
+	# arguments to feed to the compiler and the linker
+	"compiler_args": "",
+	"linker_args":"",
+	# the string composed by the names of the libraries -> "-lpthread -lm ..."
+	"libraries_names" : "",
+	# the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+	"libraries_paths": "",
+	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+	"includes_paths": "",
+	"src_paths" : "",
+	"compiler_exec": "",
+	"project_path":"",
+	"objects_path": "",
+	"exe_path": "",
+	"exe_name" : ""
+}
 
 sha1 = hashlib.sha1()
 old_hashes = {}
@@ -47,12 +55,13 @@ source_files_extensions = ["c", "cpp", "cxx", "c++", "cc", "C"]
 def print_stdout(mexage: tuple) -> bool:
 
 	out = mexage[1].split("\n")[0:-1]
+
+	res = True
 	
 	for i in range(len(out)):
 		if "error" in out[i]:
 			print(Fore.RED, out[i])
-			print(Fore.WHITE)
-			return False
+			res = True
 		elif "warning" in out[i]:
 			print(Fore.BLUE, out[i])
 		elif "note" in out[i]:
@@ -62,7 +71,7 @@ def print_stdout(mexage: tuple) -> bool:
 
 	print(Fore.WHITE)
 
-	return True
+	return res
 
 
 def exe_command(command: str) -> tuple:
@@ -79,58 +88,59 @@ def parse_config_json(optimization: bool) -> None:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	"""
-	global includes, compiler_exec, projectDir, targetDir, args, libraries, srcDirs
+	global compilation_variables
 
 	# load and parse the file
 	config_file = json.load(open("cpp_builder_config.json"))
 
 	# base directory for ALL the other directories and files
-	projectDir = config_file["projectDir"]
+	compilation_variables["project_path"] = config_file["projectDir"]
 
 	# get the compiler executable {gcc, g++, clang, etc}
-	compiler_exec = config_file["compilerExe"]
+	compilation_variables["compiler_exec"] = config_file["compilerExe"]
 
 	# --- Libraries path and names ---
 
 	# create the library args -> -lsomelib -lsomelib2 -l...
 	if optimization:
 		for lname in config_file["libraries"]["Release"]:
-			libraries[0] += " -l" + lname
+			compilation_variables["libraries_names"] += " -l" + lname
 	else:
 		for lname in config_file["libraries"]["Debug"]:
-			libraries[0] += " -l" + lname
+			compilation_variables["libraries_names"] += " -l" + lname
 
 	# create the libraries path args -> -Lsomelibrary/lib -L...
 	for Lname in config_file["Directories"]["libraryDir"]:
-		libraries[1] += " -L" + Lname
-	libraries[1] = libraries[1][1:] #remove first whitespace
+		compilation_variables["libraries_paths"] += " -L" + Lname
+	compilation_variables["libraries_paths"] = compilation_variables["libraries_paths"][1:]
 
 	# --- Include and Source Directories
 
 	# create the includes args -> -Iinclude -Isomelibrary/include -I...
 	for Idir in config_file["Directories"]["includeDir"]:
-		includes += "-I" + Idir + " "
-	includes = includes.removesuffix(" ") # remove trailing space
+		compilation_variables["includes_paths"] += " -I" + Idir
+	compilation_variables["includes_paths"]  = compilation_variables["includes_paths"][1:] #remove first whitespace
 
 	# source dir where the source code file are located
-	srcDirs = config_file["Directories"]["sourceDir"]
+	compilation_variables["src_paths"] = config_file["Directories"]["sourceDir"]
 
-	targetDir[0] = config_file["Directories"]["objectsDir"]
-	targetDir[1] = config_file["Directories"]["exeDir"]
-	targetDir[2] = config_file["exeName"]
+	compilation_variables["objects_path"] = config_file["Directories"]["objectsDir"]
+	compilation_variables["exe_path"] = config_file["Directories"]["exeDir"]
+	compilation_variables["exe_name"] = config_file["exeName"]
 
 	# --- Compiling an linking arguments ---
 
 	# compiler and linker argument
 	if optimization:
-		args[0] = config_file["Arguments"]["Release"]["Compiler"]
-		args[1] = config_file["Arguments"]["Release"]["Linker"]
+		compilation_variables["compiler_args"]  = config_file["Arguments"]["Release"]["Compiler"]
+		compilation_variables["linker_args"] = config_file["Arguments"]["Release"]["Linker"]
 	else:
-		args[0] = config_file["Arguments"]["Debug"]["Compiler"]
-		args[1] = config_file["Arguments"]["Debug"]["Linker"]
+		compilation_variables["compiler_args"]  = config_file["Arguments"]["Debug"]["Compiler"]
+		compilation_variables["linker_args"] = config_file["Arguments"]["Debug"]["Linker"]
 
 
 def ismodified(filename: str) -> bool:
+
 	global new_hashes
 	global old_hashes
 
@@ -141,8 +151,10 @@ def ismodified(filename: str) -> bool:
 
 
 def calculate_new_hashes() -> None:
-	global new_hashes, sha1, srcDirs
-	for source_directory in srcDirs: # loop trough all the source files directories
+
+	global compilation_variables, sha1
+
+	for source_directory in compilation_variables["src_paths"]: # loop trough all the source files directories
 		for file in os.listdir(source_directory): # loop trough every file of each directory
 
 			# sha1 hash calculation
@@ -158,7 +170,9 @@ def calculate_new_hashes() -> None:
 
 
 def load_old_hashes() -> None:
+
 	global old_hashes
+
 	# read hashes from files and add them to old_hashes array
 	with open("files_hash.txt", "r") as f:
 		while True:
@@ -173,9 +187,12 @@ def load_old_hashes() -> None:
 
 
 def get_to_compile() -> list:
+
+	global compilation_variables
+
 	to_compile = [] # contains directory and filename
 	# checking which file need to be compiled
-	for source_directory in srcDirs: # loop trough all the source files directories
+	for source_directory in compilation_variables["src_paths"]: # loop trough all the source files directories
 		for file in os.listdir(source_directory): # loop trough every file of each directory
 			# i need to differentiate differen parts
 			# extension: to decide if it has to be compiled or not and to name it 
@@ -193,7 +210,9 @@ def get_to_compile() -> list:
 
 
 def save_new_hashes() -> None:
+
 	global new_hashes
+	
 	with open("files_hash.txt", "w") as f:
 		for i in new_hashes.keys():
 			f.write(i + ":")
@@ -201,11 +220,18 @@ def save_new_hashes() -> None:
 
 
 def compile(to_compile: list) -> bool:
-	global args, includes, targetDir, compiler_exec
+
+	global compilation_variables
+
 	errors = 0
 
+	compiler_exec = compilation_variables["compiler_exec"]
+	includes = compilation_variables["includes_paths"]
+	compiler_args = compilation_variables["compiler_args"]
+	obj_dir = compilation_variables["objects_path"]
+
 	for file in to_compile:
-		command = f"{compiler_exec} {args[0]} {includes} -c -o {targetDir[0]}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
+		command = f"{compiler_exec} {compiler_args} {includes} -c -o {obj_dir}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -214,11 +240,11 @@ def compile(to_compile: list) -> bool:
 
 def link() -> bool:
 
-	global args, targetDir, libraries, compiler_exec
+	global compilation_variables
 
 	to_link = [] # contains directory and filename
 	# checking which file need to be compiled
-	for source_directory in srcDirs: # loop trough all the source files directories
+	for source_directory in compilation_variables["src_paths"]: # loop trough all the source files directories
 		for file in os.listdir(source_directory): # loop trough every file of each directory
 			# i need to differentiate differen parts
 			# extension: to decide if it has to be compiled or not and to name it 
@@ -232,12 +258,19 @@ def link() -> bool:
 				to_link.append([source_directory, file_name, ext])
 
 
-	Link_cmd = f"{compiler_exec} {args[1]} -o {targetDir[1]}/{targetDir[2]} {libraries[1]}"
+	compiler_exec = compilation_variables["compiler_exec"]
+	linker_args = compilation_variables["linker_args"]
+	exe_path = compilation_variables["exe_path"]
+	exe_name = compilation_variables["exe_name"]
+	libraries_paths = compilation_variables["libraries_paths"]
+	obj_dir = compilation_variables["objects_path"]
+
+	Link_cmd = f"{compiler_exec} {linker_args} -o {exe_path}/{exe_name} {libraries_paths}"
 
 	for file in to_link:
-		Link_cmd += f" {targetDir[0]}/{file[0]}{file[1]}.o"
+		Link_cmd += f" {obj_dir}/{file[0]}{file[1]}.o"
 	
-	Link_cmd += libraries[0]
+	Link_cmd += compilation_variables["libraries_names"]
 
 	print(Link_cmd)
 	return print_stdout(exe_command(Link_cmd))
@@ -245,12 +278,14 @@ def link() -> bool:
 
 def main():
 
+	global compilation_variables
+
 	if "-o" in sys.argv:
 		parse_config_json(True)
 	else:
 		parse_config_json(False)
 
-	os.chdir(projectDir)
+	os.chdir(compilation_variables["project_path"])
 
 	#init colorama
 	init()
