@@ -4,8 +4,9 @@
 ### Options:
 	-a	rebuild the entire project
 	-o	utilize optimization options arguments and libraries, default is debug 
+	-e	so not compile and export the cpp_builder_config as a Makefile with debug and release steps
 
-### the cpp_builderconfig.json structure
+### the cpp_builder_config.json structure
 
 <pre>
 {
