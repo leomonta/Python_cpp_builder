@@ -13,7 +13,7 @@
 # TODO: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
 # TODO: identify each header and figure out which source file include which
 # TODO: if a config value is empty prevent double space in cmd agument
-# TODO: add a type config value for gcc | msvc so i can devcide which cmd args to use -> -c | /c
+# TODO: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
 # Done: added specific linker exec
 # TODO: use compiler exec of no linker exec is present
 # Done: error and warning coloring in the console
@@ -26,7 +26,6 @@
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
 import json  # parse cpp_builder_config.json
-from colorama import Fore, init
 import hashlib  # for calculating hashes
 import sys  # for arguments parsing
 
@@ -73,11 +72,62 @@ compilation_variables = {
     "exe_name": ""
 }
 
+# 0 gcc / clang 
+# 1 msvc
+compiler_type = 0
+
 sha1 = hashlib.sha1()
 old_hashes = {}
 new_hashes = {}
 
 source_files_extensions = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
+
+Common_args = {
+	"Compile_only": ["c", "c"],
+	"Output_compiler" : ["o", "Fo"],
+	"Output_linker" : ["o", "OUT:"],
+	"Object_extension": ["o", "obj"]
+}
+
+class COLS:
+
+	FG_BLACK         = '\033[30m'
+	FG_RED           = '\033[31m'
+	FG_GREEN         = '\033[32m'
+	FG_YELLOW        = '\033[33m'
+	FG_BLUE          = '\033[34m'
+	FG_MAGENTA       = '\033[35m'
+	FG_CYAN          = '\033[36m'
+	FG_WHITE         = '\033[37m'
+
+	BG_BLACK         = '\033[40m'
+	BG_RED           = '\033[41m'
+	BG_GREEN         = '\033[42m'
+	BG_YELLOW        = '\033[43m'
+	BG_BLUE          = '\033[44m'
+	BG_MAGENTA       = '\033[45m'
+	BG_CYAN          = '\033[46m'
+	BG_WHITE         = '\033[47m'
+
+	FG_LIGHT_BLACK   = '\033[90m'
+	FG_LIGHT_RED     = '\033[91m'
+	FG_LIGHT_GREEN   = '\033[92m'
+	FG_LIGHT_YELLOW  = '\033[93m'
+	FG_LIGHT_BLUE    = '\033[94m'
+	FG_LIGHT_MAGENTA = '\033[95m'
+	FG_LIGHT_CYAN    = '\033[96m'
+	FG_LIGHT_WHITE   = '\033[97m'
+
+	BG_LIGHT_BLACK   = '\033[100m'
+	BG_LIGHT_RED     = '\033[101m'
+	BG_LIGHT_GREEN   = '\033[102m'
+	BG_LIGHT_YELLOW  = '\033[103m'
+	BG_LIGHT_BLUE    = '\033[104m'
+	BG_LIGHT_MAGENTA = '\033[105m'
+	BG_LIGHT_CYAN    = '\033[106m'
+	BG_LIGHT_WHITE   = '\033[107m'
+
+	RESET            = '\033[0m'
 
 
 def print_stdout(mexage: tuple) -> bool:
@@ -88,16 +138,16 @@ def print_stdout(mexage: tuple) -> bool:
 
 	for i in range(len(out)):
 		if "error" in out[i]:
-			print(Fore.RED, out[i])
+			print(COLS.FG_RED, out[i])
 			res = False
 		elif "warning" in out[i]:
-			print(Fore.BLUE, out[i])
+			print(COLS.FG_BLUE, out[i])
 		elif "note" in out[i]:
-			print(Fore.CYAN, out[i])
+			print(COLS.FG_CYAN, out[i])
 		else:
 			print(out[i])
 
-	print(Fore.WHITE)
+	print(COLS.RESET)
 
 	return res
 
@@ -116,7 +166,7 @@ def parse_config_json(optimization: str) -> None:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	"""
-	global compilation_variables
+	global compilation_variables, compiler_type
 
 	for k in compilation_variables:
 		compilation_variables[k] = ""
@@ -130,6 +180,9 @@ def parse_config_json(optimization: str) -> None:
 	# get the compiler executable {gcc, g++, clang, etc}
 	compilation_variables["compiler_exec"] = config_file["compilerExe"]
 	compilation_variables["linker_exec"] = config_file["linkerExe"]
+
+	if config_file["compiler_style"] == "msvc":
+		compiler_type = 1
 
 	# --- Libraries path and names ---
 
@@ -269,7 +322,7 @@ def compile(to_compile: list) -> bool:
 	Compile all correct files with the specified arguments
 	"""
 
-	global compilation_variables
+	global compilation_variables, compiler_type
 
 	errors = 0
 
@@ -279,7 +332,7 @@ def compile(to_compile: list) -> bool:
 	obj_dir = compilation_variables["objects_path"]
 
 	for file in to_compile:
-		command = f"{compiler_exec}{compiler_args}{includes} -c -o {obj_dir}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
+		command = f"{compiler_exec}{compiler_args}{includes} -{Common_args['Compile_only'][compiler_type]} -{Common_args['Output_compiler'][compiler_type]} {obj_dir}/{file[0]}{file[1]}.{Common_args['Object_extension'][compiler_type]} {file[0]}/{file[1]}.{file[2]}"
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -291,7 +344,7 @@ def link() -> bool:
 	Link together all the files that have been compiled with the specified libraries and arguments
 	"""
 
-	global compilation_variables
+	global compilation_variables, compiler_type
 
 	to_link = []  # contains directory and filename
 	# checking which file need to be compiled
@@ -315,7 +368,7 @@ def link() -> bool:
 	libraries_paths = compilation_variables["libraries_paths"]
 	obj_dir = compilation_variables["objects_path"]
 
-	Link_cmd = f"{linker_exec}{linker_args} -o {exe_path}/{exe_name}{libraries_paths}"
+	Link_cmd = f"{linker_exec}{linker_args} -{Common_args['Output_linker'][compiler_type]} {exe_path}/{exe_name}{libraries_paths}"
 
 	for file in to_link:
 		Link_cmd += f" {obj_dir}/{file[0]}{file[1]}.o"
@@ -427,9 +480,6 @@ def main():
 
 	os.chdir(compilation_variables["project_path"])
 
-	#init colorama
-	init()
-
 	# create file if it does not exist
 	if not os.path.exists("files_hash.txt"):
 		f = open("files_hash.txt", "w")
@@ -447,7 +497,7 @@ def main():
 
 	# --- Compiling ---
 
-	print(Fore.GREEN, " --- Compiling ---", Fore.WHITE)
+	print(COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
 
 	if not to_compile:
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
@@ -456,18 +506,19 @@ def main():
 	# compile each file and show the output,
 	# and check for errors
 	if compile(to_compile):
-		print(f"\n{Fore.RED} --- Linking skipped due to errors in compilation process! ---")
+		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
 		sys.exit(1)
 
 	# --- Linking ---
 
-	print(Fore.GREEN, " --- Linking ---", Fore.WHITE)
+	print(COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
 
 	if not link():
-		print(f"\n{Fore.RED} --- Errors in linking process! ---")
+		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(1)
 
 	save_new_hashes()
 
 
-main()
+if __name__ == "__main__":
+	main()
