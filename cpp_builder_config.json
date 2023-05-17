@@ -1,4 +1,8 @@
 {
+	"scripts": {
+		"pre": "pre.sh",
+		"post":"post.sh"
+	},
 	"compiler": {
 		"compiler_style": "gcc",
 		"compiler_exe": "g++",

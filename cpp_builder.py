@@ -91,17 +91,23 @@ source_files_extensions: list[str] = [
 
 compilers_common_args: list[dict[str, str]] = [
 	{
-		"compile_only": "c",
-		"output_compiler": "o",
-		"output_linker": "o",
+		"compile_only": "-c",
+		"output_compiler": "-o",
+		"output_linker": "-o",
 		"object_extension": "o"
 	},
 	{
-		"compile_only": "c",
-		"output_compiler": "Fo",
-		"output_linker": "OUT:",
+		"compile_only": "/c",
+		"output_compiler": "/Fo",
+		"output_linker": "/OUT:",
 		"object_extension": "obj"
-	}
+	},
+	{
+		"compile_only": "--crate-name",
+		"output_compiler": "--emit",
+		"output_linker": "o",
+		"object_extension": "o"
+	},
 ]
 
 
@@ -153,12 +159,12 @@ def print_stdout(mexage: tuple) -> bool:
 	res = True
 
 	for i in range(len(out)):
-		if "error" in out[i]:
+		if "error:" in out[i]:
 			print(COLS.FG_RED, out[i])
 			res = False
-		elif "warning" in out[i]:
+		elif "warning:" in out[i]:
 			print(COLS.FG_BLUE, out[i])
-		elif "note" in out[i]:
+		elif "note:" in out[i]:
 			print(COLS.FG_CYAN, out[i])
 		else:
 			print(out[i])
@@ -194,7 +200,7 @@ def parse_config_json(optimization: str) -> None:
 
 
 	# --- Compiler settings ---
-	# get the compiler executable (gcc, g++, clang, etc)
+	# get the compiler executable (gcc, g++, clang, rustc, etc)
 	# and the linker executable, plus the type (needed for cli args)
 
 	settings["compiler"] = config_file["compiler"]["compiler_exe"]
@@ -203,14 +209,17 @@ def parse_config_json(optimization: str) -> None:
 	
 	# 0 gcc / clang
 	# 1 msvc
+	# 2 rust
 	compiler_type: int = 0
 
-	if cstyle == "msvc":
-		compiler_type = 1
-	elif cstyle == "gcc":
+	if cstyle == "gcc":
 		compiler_type = 0
 	elif cstyle == "clang":
 		compiler_type = 0
+	elif cstyle == "msvc":
+		compiler_type = 1
+	elif cstyle == "rustc":
+		compiler_type = 2
 
 	settings["oargs"] = compilers_common_args[compiler_type]
 
@@ -421,7 +430,7 @@ def compile(to_compile: list[str]) -> bool:
 	for file in to_compile:
 		obj_name: str = "".join(file[0].split("/"))
 
-		command = f'{cexe}{cargs}{includes} -{oargs["compile_only"]} -{oargs["output_compiler"]} {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
+		command = f'{cexe}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]} {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -458,7 +467,7 @@ def link(to_compile: list[str]) -> bool:
 	obj_dir = settings["objects_path"]
 	oargs = settings["oargs"]
 
-	Link_cmd = f'{lexe}{largs} -{oargs["output_linker"]} {epn}{Libs}'
+	Link_cmd = f'{lexe}{largs} {oargs["output_linker"]} {epn}{Libs}'
 
 	for file in to_link:
 		obj_name: str = "".join(file[0].split("/"))
@@ -566,7 +575,6 @@ def main():
 	if "-e" in sys.argv:
 		create_makefile()
 		return
-
  
 	# Release or debug mode
 	optimization_mode: str = "debug"
@@ -575,6 +583,9 @@ def main():
 	
 	parse_config_json(optimization_mode)
 
+	# Execute pre-script 
+	print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET);
+	print(exe_command(settings["scripts"]["pre"]))
 
 	# go to the project dir
 	os.chdir(settings["project_path"])
@@ -627,6 +638,8 @@ def main():
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(1)
 
+	print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
+	print(exe_command(setting["scripts"]["post"]))
 
 	save_new_hashes()
 
