@@ -112,7 +112,7 @@ def exe_command(command: str) -> tuple:
 	return stream.communicate()  # execute the command and get the result
 
 
-def parse_config_json(optimization: bool) -> None:
+def parse_config_json(optimization: str) -> None:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	"""
@@ -134,19 +134,13 @@ def parse_config_json(optimization: bool) -> None:
 	# --- Libraries path and names ---
 
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	if optimization:
-		for lname in config_file["libraries"]["Release"]:
-			compilation_variables["libraries_names"] += " -l" + lname
-	else:
-		for lname in config_file["libraries"]["Debug"]:
-			compilation_variables["libraries_names"] += " -l" + lname
+	for lname in config_file["libraries"][optimization]:
+		compilation_variables["libraries_names"] += " -l" + lname
 
-	compilation_variables["libraries_names"] = compilation_variables["libraries_names"][1:]  # remove first whitespace
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
 	for Lname in config_file["Directories"]["libraryDir"]:
 		compilation_variables["libraries_paths"] += " -L" + Lname
-	compilation_variables["libraries_paths"] = compilation_variables["libraries_paths"][1:]  # remove first whitespace
 
 	# --- Include and Source Directories
 
@@ -154,7 +148,6 @@ def parse_config_json(optimization: bool) -> None:
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in config_file["Directories"]["includeDir"]:
 		compilation_variables["includes_paths"] += " -I" + Idir
-	compilation_variables["includes_paths"] = compilation_variables["includes_paths"][1:]  # remove first whitespace
 
 	# source dir where the source code file are located
 	compilation_variables["src_paths"] = config_file["Directories"]["sourceDir"]
@@ -163,15 +156,16 @@ def parse_config_json(optimization: bool) -> None:
 	compilation_variables["exe_path"] = config_file["Directories"]["exeDir"]
 	compilation_variables["exe_name"] = config_file["exeName"]
 
-	# --- Compiling an linking arguments ---
+	# --- Compiler an Linker arguments ---
 
-	# compiler and linker argument
-	if optimization:
-		compilation_variables["compiler_args"] = config_file["Arguments"]["Release"]["Compiler"]
-		compilation_variables["linker_args"] = config_file["Arguments"]["Release"]["Linker"]
-	else:
-		compilation_variables["compiler_args"] = config_file["Arguments"]["Debug"]["Compiler"]
-		compilation_variables["linker_args"] = config_file["Arguments"]["Debug"]["Linker"]
+	compilation_variables["compiler_args"] = config_file["Arguments"][optimization]["Compiler"]
+	compilation_variables["linker_args"] = config_file["Arguments"][optimization]["Linker"]
+
+	if compilation_variables["compiler_args"]:
+		compilation_variables["compiler_args"] = " " + compilation_variables["compiler_args"]
+
+	if compilation_variables["linker_args"]:
+		compilation_variables["linker_args"] = " " + compilation_variables["linker_args"]
 
 
 def is_modified(filename: str) -> bool:
@@ -285,7 +279,7 @@ def compile(to_compile: list) -> bool:
 	obj_dir = compilation_variables["objects_path"]
 
 	for file in to_compile:
-		command = f"{compiler_exec} {compiler_args} {includes} -c -o {obj_dir}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
+		command = f"{compiler_exec}{compiler_args}{includes} -c -o {obj_dir}/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}"
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -321,13 +315,12 @@ def link() -> bool:
 	libraries_paths = compilation_variables["libraries_paths"]
 	obj_dir = compilation_variables["objects_path"]
 
-	Link_cmd = f"{linker_exec} {linker_args} -o {exe_path}/{exe_name} {libraries_paths}"
+	Link_cmd = f"{linker_exec}{linker_args} -o {exe_path}/{exe_name}{libraries_paths}"
 
 	for file in to_link:
 		Link_cmd += f" {obj_dir}/{file[0]}{file[1]}.o"
 
-	if (len(compilation_variables["libraries_names"]) > 0):
-		Link_cmd += " " + compilation_variables["libraries_names"]
+	Link_cmd += compilation_variables["libraries_names"]
 
 	print(Link_cmd)
 	return print_stdout(exe_command(Link_cmd))
@@ -428,9 +421,9 @@ def main():
 		return
 
 	if "-o" in sys.argv:
-		parse_config_json(True)
+		parse_config_json("Release")
 	else:
-		parse_config_json(False)
+		parse_config_json("Debug")
 
 	os.chdir(compilation_variables["project_path"])
 

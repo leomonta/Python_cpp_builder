@@ -2,6 +2,7 @@
 	"projectDir": "test",
 	"exeName": "game.exe",
 	"compilerExe": "g++",
+	"linkerExe": "g++",
 	"Directories": {
 		"includeDir": [
 			"include",
@@ -31,7 +32,7 @@
 	"Arguments": {
 		"Debug": {
 			"Compiler": "-g3 -std=c++2a -Wshadow",
-			"Linker": "-g3"
+			"Linker": ""
 		},
 		"Release": {
 			"Compiler": "-O2 -std=c++2a",
