@@ -30,7 +30,7 @@ import hashlib  # for calculating hashes
 import sys  # for arguments parsing
 
 
-includes_variable = {
+includes_variable: dict[str, list[str]] = {
 	# names of all includes dir + name
 	"all_includes": [],
 
@@ -38,99 +38,112 @@ includes_variable = {
 	"src_references": {}
 }
 
-compilation_variables = {
-	# arguments to feed to the compiler and the linker
-	"compiler_args": "",
-	"linker_args": "",
+settings: dict[str, any] = {
+	# name of the compiler and linker executable
+	"compiler": "",
+	"linker": "",
+
+	# compiler and linker args
+	"cargs": "",
+	"largs" : "",
+
+	# output args
+	# output swithces (/Fo -o) for msvc, clang, and gcc
+	"oargs": {},
+
+
+	# path and name of the final executable
+	"exe_path_name": "",
+
+	# base directory of the project
+	"project_path": "",
+
+	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+	"includes": "",
+
+	# directory where to leave the compiled object files
+	"objects_path": "",
+
+	# directories containing the names of the source directories
+	"source_files": [],
+
 
 	# the string composed by the names of the libraries -> "-lpthread -lm ..."
 	"libraries_names": "",
 
 	# the string composed by the path of the libraries -> "-L./path/to/lib -L..."
 	"libraries_paths": "",
-
-	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
-	"includes_paths": "",
-	"includes_files": [],
-
-	# directories containing the names of the source directories
-	"source_files": [],
-
-
-	# name of the compiler and linker executable
-	"compiler_exec": "",
-	"linker_exec": "",
-
-	# base directory of the project
-	"project_path": "",
-
-	# directory where to leave the compiled object files
-	"objects_path": "",
-
-	# path to the directory where to leave the final executable
-	"exe_path": "",
-
-	# name of the final executable
-	"exe_name": ""
 }
-
-# 0 gcc / clang
-# 1 msvc
-compiler_type = 0
 
 sha1 = hashlib.sha1()
-old_hashes = {}
-new_hashes = {}
+old_hashes: dict[str, str] = {}
+new_hashes: dict[str, str] = {}
 
-source_files_extensions = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
+source_files_extensions: list[str] = [
+	"c",
+	"cpp", 
+	"cxx",
+	"c++",
+	"cc",
+	"C",
+	"s"
+]
 
-Common_args = {
-	"Compile_only": ["c", "c"],
-	"Output_compiler": ["o", "Fo"],
-	"Output_linker": ["o", "OUT:"],
-	"Object_extension": ["o", "obj"]
-}
+compilers_common_args: list[dict[str, str]] = [
+	{
+		"compile_only": "c",
+		"output_compiler": "o",
+		"output_linker": "o",
+		"object_extension": "o"
+	},
+	{
+		"compile_only": "c",
+		"output_compiler": "Fo",
+		"output_linker": "OUT:",
+		"object_extension": "obj"
+	}
+]
 
 
 class COLS:
 
-	FG_BLACK = '\033[30m'
-	FG_RED = '\033[31m'
-	FG_GREEN = '\033[32m'
-	FG_YELLOW = '\033[33m'
-	FG_BLUE = '\033[34m'
-	FG_MAGENTA = '\033[35m'
-	FG_CYAN = '\033[36m'
-	FG_WHITE = '\033[37m'
+	FG_BLACK = "\033[30m"
+	FG_RED = "\033[31m"
+	FG_GREEN = "\033[32m"
+	FG_YELLOW = "\033[33m"
+	FG_BLUE = "\033[34m"
+	FG_MAGENTA = "\033[35m"
+	FG_CYAN = "\033[36m"
+	FG_WHITE = "\033[37m"
 
-	BG_BLACK = '\033[40m'
-	BG_RED = '\033[41m'
-	BG_GREEN = '\033[42m'
-	BG_YELLOW = '\033[43m'
-	BG_BLUE = '\033[44m'
-	BG_MAGENTA = '\033[45m'
-	BG_CYAN = '\033[46m'
-	BG_WHITE = '\033[47m'
+	BG_BLACK = "\033[40m"
+	BG_RED = "\033[41m"
+	BG_GREEN = "\033[42m"
+	BG_YELLOW = "\033[43m"
+	BG_BLUE = "\033[44m"
+	BG_MAGENTA = "\033[45m"
+	BG_CYAN = "\033[46m"
+	BG_WHITE = "\033[47m"
 
-	FG_LIGHT_BLACK = '\033[90m'
-	FG_LIGHT_RED = '\033[91m'
-	FG_LIGHT_GREEN = '\033[92m'
-	FG_LIGHT_YELLOW = '\033[93m'
-	FG_LIGHT_BLUE = '\033[94m'
-	FG_LIGHT_MAGENTA = '\033[95m'
-	FG_LIGHT_CYAN = '\033[96m'
-	FG_LIGHT_WHITE = '\033[97m'
+	FG_LIGHT_BLACK = "\033[90m"
+	FG_LIGHT_RED = "\033[91m"
+	FG_LIGHT_GREEN = "\033[92m"
+	FG_LIGHT_YELLOW = "\033[93m"
+	FG_LIGHT_BLUE = "\033[94m"
+	FG_LIGHT_MAGENTA = "\033[95m"
+	FG_LIGHT_CYAN = "\033[96m"
+	FG_LIGHT_WHITE = "\033[97m"
 
-	BG_LIGHT_BLACK = '\033[100m'
-	BG_LIGHT_RED = '\033[101m'
-	BG_LIGHT_GREEN = '\033[102m'
-	BG_LIGHT_YELLOW = '\033[103m'
-	BG_LIGHT_BLUE = '\033[104m'
-	BG_LIGHT_MAGENTA = '\033[105m'
-	BG_LIGHT_CYAN = '\033[106m'
-	BG_LIGHT_WHITE = '\033[107m'
+	BG_LIGHT_BLACK = "\033[100m"
+	BG_LIGHT_RED = "\033[101m"
+	BG_LIGHT_GREEN = "\033[102m"
+	BG_LIGHT_YELLOW = "\033[103m"
+	BG_LIGHT_BLUE = "\033[104m"
+	BG_LIGHT_MAGENTA = "\033[105m"
+	BG_LIGHT_CYAN = "\033[106m"
+	BG_LIGHT_WHITE = "\033[107m"
 
-	RESET = '\033[0m'
+	RESET = "\033[0m"
 
 
 def print_stdout(mexage: tuple) -> bool:
@@ -155,14 +168,12 @@ def print_stdout(mexage: tuple) -> bool:
 	return res
 
 
-def exe_command(command: str) -> tuple:
+def exe_command(command: str) -> tuple[str, str]:
 	"""
-		execute the given command and return the output -> [stdout, stderr]
-		"""
+	execute the given command and return the output -> [stdout, stderr]
+	"""
 
-	stream = subprocess.Popen(
-		command.split(" "), stderr=subprocess.PIPE, universal_newlines=True
-	)
+	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
 	return stream.communicate()  # execute the command and get the result
 
@@ -170,71 +181,132 @@ def exe_command(command: str) -> tuple:
 def parse_config_json(optimization: str) -> None:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
-	"""
-	global compilation_variables, compiler_type
+	the optimization argument decide if debug or release mode
 
-	for k in compilation_variables:
-		compilation_variables[k] = ""
+	if values are missing from the release section, debug values will be used
+	"""
+
+	global settings
 
 	# load and parse the file
 	config_file = json.load(open("cpp_builder_config.json"))
 
-	# base directory for ALL the other directories and files
-	compilation_variables["project_path"] = config_file["projectDir"]
 
-	# get the compiler executable {gcc, g++, clang, etc}
-	compilation_variables["compiler_exec"] = config_file["compilerExe"]
-	compilation_variables["linker_exec"] = config_file["linkerExe"]
 
-	if config_file["compiler_style"] == "msvc":
+	# --- Compiler settings ---
+	# get the compiler executable (gcc, g++, clang, etc)
+	# and the linker executable, plus the type (needed for cli args)
+
+	settings["compiler"] = config_file["compiler"]["compiler_exe"]
+
+	cstyle: str = config_file["compiler"]["compiler_style"]
+	
+	# 0 gcc / clang
+	# 1 msvc
+	compiler_type: int = 0
+
+	if cstyle == "msvc":
 		compiler_type = 1
+	elif cstyle == "gcc":
+		compiler_type = 0
+	elif cstyle == "clang":
+		compiler_type = 0
 
-	# --- Libraries path and names ---
+	settings["oargs"] = compilers_common_args[compiler_type]
+
+	settings["linker"] = config_file["compiler"]["linker_exe"]
+
+
+
+	# --- Directories settings ---
+	# Where is the project
+	# where are the source files and the include files
+
+	# base directory for ALL the other directories and files
+	settings["project_path"] = config_file["directories"]["project_dir"]
+
+
+	# name of the final executable
+	settings["exe_path_name"] = config_file["directories"]["exe_path_name"]
+
+
+	targets: list[str] = []
+
+	old_dir: str = os.getcwd()
+
+	os.chdir(settings["project_path"])
+	for sdir in config_file["directories"]["source_dirs"]:
+		for path, subdirs, files in os.walk(sdir):
+			for name in files:
+				targets.append(f"{path}/{name}")
+
+	os.chdir(old_dir)
+
+	settings["source_files"] = targets
+
+
+	# create the includes args -> -IInclude -ISomelibrary/include -I...
+	for Idir in config_file["directories"]["include_dirs"]:
+		settings["includes"] += " -I" + Idir
+
+	settings["objects_path"] = config_file["directories"]["temp_dir"]
+
+
+
+	# Optimization dependent stuff
+	opt: str = optimization
+
+	# --- Libs ---
+	# if the current optimization section has no libs, default to debug
+	if not config_file[optimization]["libraries_names"]:
+		opt = "debug"
 
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	for lname in config_file["libraries"][optimization]:
-		compilation_variables["libraries_names"] += " -l" + lname
+	for lname in config_file[opt]["libraries_names"]:
+		settings["libraries_names"] += " -l" + lname
+
+
+	# if the current optimization section has no libs, default to debug
+	if not config_file[optimization]["libraries_dirs"]:
+		opt = "debug"
+	else:
+		opt = optimization
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
-	for Lname in config_file["Directories"]["libraryDir"]:
-		compilation_variables["libraries_paths"] += " -L" + Lname
+	for Lname in config_file[opt]["libraries_dirs"]:
+		settings["libraries_paths"] += " -L" + Lname
 
-	# --- Include and Source Directories
 
-	compilation_variables["includes_dirs"] = config_file["Directories"][
-		"includeDir"]
-	# create the includes args -> -IInclude -ISomelibrary/include -I...
-	for Idir in config_file["Directories"]["includeDir"]:
-		compilation_variables["includes_paths"] += " -I" + Idir
-
-	# source dir where the source code file are located
-	compilation_variables["src_paths"] = config_file["Directories"]["sourceDir"]
-
-	compilation_variables["objects_path"] = config_file["Directories"][
-		"objectsDir"]
-	compilation_variables["exe_path"] = config_file["Directories"]["exeDir"]
-	compilation_variables["exe_name"] = config_file["exeName"]
 
 	# --- Compiler an Linker arguments ---
 
-	compilation_variables["compiler_args"] = config_file["Arguments"][
-		optimization]["Compiler"]
-	compilation_variables["linker_args"] = config_file["Arguments"][optimization
-																   ]["Linker"]
+	
+	if not config_file[optimization]["compiler_args"]:
+		opt = "debug"
+	else:
+		opt = optimization	
+	settings["cargs"] = config_file[opt]["compiler_args"]
 
-	if compilation_variables["compiler_args"]:
-		compilation_variables["compiler_args"
-							 ] = " " + compilation_variables["compiler_args"]
 
-	if compilation_variables["linker_args"]:
-		compilation_variables["linker_args"
-							 ] = " " + compilation_variables["linker_args"]
+	if not config_file[optimization]["linker_args"]:
+		opt = "debug"
+	else:
+		opt = optimization	
+	settings["largs"] = config_file[opt]["linker_args"]
+
+
+	# fix for empty args
+	if settings["cargs"]:
+		settings["cargs"] = " " + settings["cargs"]
+
+	if settings["largs"]:
+		settings["largs"] = " " + settings["largs"]
 
 
 def is_modified(filename: str) -> bool:
 	"""
-		Given a filename return if it has been modified
-		"""
+	Given a filename return if it has been modified
+	"""
 
 	global new_hashes
 	global old_hashes
@@ -250,15 +322,9 @@ def calculate_new_hashes() -> None:
 	Calculate the hashes for all the source files
 	"""
 
-	global compilation_variables, sha1, includes_variable
+	global settings, sha1
 
-	targets: str = []
-
-	for path, subdirs, files in os.walk(compilation_variables["src_paths"][0]):
-		for name in files:
-			targets.append(f"{path}/{name}")
-
-	for file in targets:  # loop trough every file of each directory
+	for file in settings["source_files"]:  # loop trough every file of each directory
 
 		# sha1 hash calculation
 
@@ -274,8 +340,8 @@ def calculate_new_hashes() -> None:
 
 def load_old_hashes() -> None:
 	"""
-		Load in old_hashes the hashes present in files_hash.txt
-		"""
+	Load in old_hashes the hashes present in files_hash.txt
+	"""
 
 	global old_hashes
 
@@ -292,22 +358,17 @@ def load_old_hashes() -> None:
 			old_hashes[temp[0]] = temp[1]
 
 
-def get_to_compile() -> list:
+def get_to_compile() -> list[str]:
 	"""
 	return a list of files and their directories that need to be compiled
 	"""
 
-	global compilation_variables
+	global settings
 
 	to_compile = []  # contains directory and filename
-	targets: str = []
-
-	for path, subdirs, files in os.walk(compilation_variables["src_paths"][0]):
-		for name in files:
-			targets.append(f"{path}/{name}")
 
 	# checking which file need to be compiled
-	for file in targets:  # loop trough every file of each directory
+	for file in settings["source_files"]:  # loop trough every file of each directory
 		# i need to differentiate different parts
 		# extension: to decide if it has to be compiled or not and to name it
 		# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
@@ -315,12 +376,15 @@ def get_to_compile() -> list:
 
 		if is_modified(file):
 
+			# get file extension
 			temp = file.split(".")
 			ext = temp.pop(-1)
-			tpath: str = temp[0]
-			path: list[str] = tpath.split("/")
+
+			# get filename and relative source dir
+			path: list[str] = temp[0].split("/")
 			file_name: str = path[-1]
 			source_directory: str = "/".join(path[:-1])
+
 			if (ext in source_files_extensions):  # check if it is a source file
 				to_compile.append([source_directory, file_name, ext])
 	return to_compile
@@ -339,64 +403,53 @@ def save_new_hashes() -> None:
 			f.write(new_hashes[i] + "\n")
 
 
-def compile(to_compile: list) -> bool:
+def compile(to_compile: list[str]) -> bool:
 	"""
 	Compile all correct files with the specified arguments
 	"""
 
-	global compilation_variables, compiler_type
+	global settings
 
 	errors = 0
 
-	compiler_exec = compilation_variables["compiler_exec"]
-	includes = compilation_variables["includes_paths"]
-	compiler_args = compilation_variables["compiler_args"]
-	obj_dir = compilation_variables["objects_path"]
+	cexe = settings["compiler"]
+	includes = settings["includes"]
+	cargs = settings["cargs"]
+	obj_dir = settings["objects_path"]
+	oargs = settings["oargs"]
 
 	for file in to_compile:
-		obj_pathname: str = "".join(file[0].split("/"))
-		command = f"{compiler_exec}{compiler_args}{includes} -{Common_args['Compile_only'][compiler_type]} -{Common_args['Output_compiler'][compiler_type]} {obj_dir}/{obj_pathname}{file[1]}.{Common_args['Object_extension'][compiler_type]} {file[0]}/{file[1]}.{file[2]}"
+		obj_name: str = "".join(file[0].split("/"))
+
+		command = f'{cexe}{cargs}{includes} -{oargs["compile_only"]} -{oargs["output_compiler"]} {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
 	return errors > 0
 
 
-def link() -> bool:
+def link(to_compile: list[str]) -> bool:
 	"""
 	Link together all the files that have been compiled with the specified libraries and arguments
 	"""
 
-	global compilation_variables, compiler_type
+	global settings
 
-	to_link = []  # contains directory and filename
-	# checking which file need to be compiled
-	for source_directory in compilation_variables["src_paths"]:  # loop trough all the source files directories
-		for file in os.listdir(source_directory):  # loop trough every file of each directory
-			# i need to differentiate different parts
-			# extension: to decide if it has to be compiled or not and to name it
-			# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
-			# source dir: necessary for differentiate eventual same-named files on different dirs
+	lexe = settings["linker"]
+	largs = settings["largs"]
+	epn = settings["exe_path_name"]
+	Libs = settings["libraries_paths"]
+	obj_dir = settings["objects_path"]
+	oargs = settings["oargs"]
 
-			temp = file.split(".")
-			ext = temp.pop(-1)
-			file_name = "".join(temp)
-			if (ext in source_files_extensions):  # check if it is a source file
-				to_link.append([source_directory, file_name, ext])
+	Link_cmd = f'{lexe}{largs} -{oargs["output_linker"]} {epn}{Libs}'
 
-	linker_exec = compilation_variables["linker_exec"]
-	linker_args = compilation_variables["linker_args"]
-	exe_path = compilation_variables["exe_path"]
-	exe_name = compilation_variables["exe_name"]
-	libraries_paths = compilation_variables["libraries_paths"]
-	obj_dir = compilation_variables["objects_path"]
+	for file in to_compile:
+		obj_name: str = "".join(file[0].split("/"))
 
-	Link_cmd = f"{linker_exec}{linker_args} -{Common_args['Output_linker'][compiler_type]} {exe_path}/{exe_name}{libraries_paths}"
+		Link_cmd += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
 
-	for file in to_link:
-		Link_cmd += f" {obj_dir}/{file[0]}{file[1]}.o"
-
-	Link_cmd += compilation_variables["libraries_names"]
+	Link_cmd += settings["libraries_names"]
 
 	print(Link_cmd)
 	return print_stdout(exe_command(Link_cmd))
@@ -414,7 +467,7 @@ def create_makefile():
 	make_file += f'BinName={compilation_variables["exe_path"]}/{compilation_variables["exe_name"]}\n'
 	make_file += f'ObjsDir={compilation_variables["objects_path"]}\n'
 
-	make_file += '\n# Debug variables\n'
+	make_file += "\n# Debug variables\n"
 	make_file += f'DCompilerArgs={compilation_variables["compiler_args"]}\n'
 	make_file += f'DLinkerArgs={compilation_variables["linker_args"]}\n'
 	make_file += f'DLibrariesPaths={compilation_variables["libraries_paths"]}\n'
@@ -423,16 +476,16 @@ def create_makefile():
 	# first debug options
 	parse_config_json(True)
 
-	make_file += '\n# Release variables\n'
+	make_file += "\n# Release variables\n"
 	make_file += f'RCompilerArgs={compilation_variables["compiler_args"]}\n'
 	make_file += f'RLinkerArgs={compilation_variables["linker_args"]}\n'
 	make_file += f'RLibrariesPaths={compilation_variables["libraries_paths"]}\n'
 	make_file += f'RLibrariesNames={compilation_variables["libraries_names"]}\n'
 
-	make_file += '\n# includes\n'
+	make_file += "\n# includes\n"
 	make_file += f'Includes={compilation_variables["includes_paths"]}\n'
 
-	make_file += '\n\n'
+	make_file += "\n\n"
 
 	# targets
 
@@ -444,53 +497,54 @@ def create_makefile():
 	# get the file needed to compile
 	to_compile = get_to_compile()
 
-	make_file += 'debug: DCompile DLink\n\n'
+	make_file += "debug: DCompile DLink\n\n"
 
-	make_file += 'release: RCompile RLink\n\n'
+	make_file += "release: RCompile RLink\n\n"
 
 	# Debug commands
 
-	make_file += '\nDCompile: \n'
+	make_file += "\nDCompile: \n"
 
 	for file in to_compile:
-		make_file += f'	$(CC) $(DCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n'
+		make_file += f"	$(CC) $(DCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n"
 
-	make_file += '\nDLink: \n'
+	make_file += "\nDLink: \n"
 
-	make_file += f'	$(CC) $(DLinkerArgs) -o $(BinName) $(DLibrariesPaths)'
+	make_file += f"	$(CC) $(DLinkerArgs) -o $(BinName) $(DLibrariesPaths)"
 
 	for file in to_compile:
-		make_file += f'	$(ObjsDir)/{file[0]}{file[1]}.o'
+		make_file += f"	$(ObjsDir)/{file[0]}{file[1]}.o"
 
-	make_file += f' $(DLibrariesNames)\n'
+	make_file += f" $(DLibrariesNames)\n"
 
 	# Release commands
 
-	make_file += '\nRCompile: \n'
+	make_file += "\nRCompile: \n"
 
 	for file in to_compile:
-		make_file += f'	$(CC) $(RCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n'
+		make_file += f"	$(CC) $(RCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n"
 
-	make_file += '\nRLink: \n'
+	make_file += "\nRLink: \n"
 
-	make_file += f'	$(CC) $(RLinkerArgs) -o $(BinName) $(RLibrariesPaths)'
+	make_file += f"	$(CC) $(RLinkerArgs) -o $(BinName) $(RLibrariesPaths)"
 
 	for file in to_compile:
 		make_file += f" $(ObjsDir)/{file[0]}{file[1]}.o"
 
-	make_file += f' $(RLibrariesNames)\n'
+	make_file += f" $(RLibrariesNames)\n"
 
-	make_file += '\nclean:\n'
-	make_file += '	rm -r -f objs/*\n'
-	make_file += '	rm -r -f $(BinName)\n'
+	make_file += "\nclean:\n"
+	make_file += "	rm -r -f objs/*\n"
+	make_file += "	rm -r -f $(BinName)\n"
 
-	with open('Makefile', 'w+') as mf:
+	with open("Makefile", "w+") as mf:
 		mf.write(make_file)
 
 
 def main():
 
-	global compilation_variables
+	global settings
+
 
 	# makefile option
 	if "-e" in sys.argv:
@@ -499,15 +553,15 @@ def main():
 
  
 	# Release or debug mode
-	optimization_mode: str = "Debug"
+	optimization_mode: str = "debug"
 	if "-o" in sys.argv:
-		optimization_mode = "Release"
+		optimization_mode = "release"
 	
 	parse_config_json(optimization_mode)
 
 
 	# go to the project dir
-	os.chdir(compilation_variables["project_path"])
+	os.chdir(settings["project_path"])
 
 
 	# create file if it does not exist
@@ -539,6 +593,8 @@ def main():
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
 		return
 
+	if not os.path.exists("objs"):
+		os.makedirs("objs")
 
 	# compile each file and show the output,
 	# and check for errors
@@ -551,7 +607,7 @@ def main():
 
 	print(COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
 
-	if not link():
+	if not link(to_compile):
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(1)
 

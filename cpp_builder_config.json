@@ -7,6 +7,7 @@
 	
 	"directories": {
 		"project_dir": "test",
+		"exe_path_name": "bin/game.bin",
 		"include_dirs": [
 			"include",
 			"ext"
@@ -14,15 +15,14 @@
 		"source_dirs": [
 			"src"
 		],
-		"temp_dir": "objs",
-		"exe_dir": "bin"
+		"temp_dir": "objs"
 	},
 
 	"debug": {
 		"compiler_args": "-g3 -std=c++2a -Wshadow",
 		"linker_args": "",
 		"libraries_dirs": [
-			"ext/raaylib/lib"
+			"ext/raylib/lib"
 		],
 		"libraries_names": [
 			"raylib",
@@ -39,7 +39,5 @@
 		],
 		"libraries_names": [
 		]
-	},
-
-	"exe_name": "game.exe"
+	}
 }
