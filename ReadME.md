@@ -3,6 +3,7 @@
 
 #### the cpp_builderconfig.json structure
 
+<pre>
 {
     "projectDir": "Base directory of the entire project"
     "exeName": "Name of th executable produced",
@@ -27,3 +28,4 @@
         "Linker": "additiona arguments for the linker"
     }
 }
+</pre>
