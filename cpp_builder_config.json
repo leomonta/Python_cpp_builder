@@ -1,5 +1,7 @@
 {
 	"scripts": {
+		"pre" : "setup.sh",
+		"post": "install.sh"
 	},
 	"compiler": {
 		"compiler_style": "gcc",

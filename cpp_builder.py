@@ -656,7 +656,7 @@ def main():
 
 	if "post" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
-		print(exe_command(f'{settings["scripts"]["post"]}')[1])
+		print(exe_command(f'./{settings["scripts"]["post"]}')[1])
 
 
 	save_new_hashes()
