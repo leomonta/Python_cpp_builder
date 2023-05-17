@@ -17,12 +17,8 @@
 	},
 	"libraries": [
 		"raylib",
-		"kernel32",
-		"user32",
-		"shell32",
-		"winmm",
-		"gdi32",
-		"opengl32"
+		"dl",
+		"pthread"
 	],
 	"Arguments": {
 		"Compiler": "-g3 -std=c++2a -Wshadow",
