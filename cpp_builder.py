@@ -31,13 +31,18 @@ compilation_variables = {
 	# arguments to feed to the compiler and the linker
 	"compiler_args": "",
 	"linker_args":"",
+
 	# the string composed by the names of the libraries -> "-lpthread -lm ..."
 	"libraries_names" : "",
+
 	# the string composed by the path of the libraries -> "-L./path/to/lib -L..."
 	"libraries_paths": "",
+
 	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
 	"includes_paths": "",
-	"src_paths" : "",
+
+	# directories containing the names of the source directories 
+	"src_paths" : [],
 	"compiler_exec": "",
 	"project_path":"",
 	"objects_path": "",
@@ -109,17 +114,19 @@ def parse_config_json(optimization: bool) -> None:
 		for lname in config_file["libraries"]["Debug"]:
 			compilation_variables["libraries_names"] += " -l" + lname
 
+	compilation_variables["libraries_names"] += compilation_variables["libraries_names"][1:] # remove first whitespace
+
 	# create the libraries path args -> -Lsomelibrary/lib -L...
 	for Lname in config_file["Directories"]["libraryDir"]:
 		compilation_variables["libraries_paths"] += " -L" + Lname
-	compilation_variables["libraries_paths"] = compilation_variables["libraries_paths"][1:]
+	compilation_variables["libraries_paths"] = compilation_variables["libraries_paths"][1:] # remove first whitespace
 
 	# --- Include and Source Directories
 
 	# create the includes args -> -Iinclude -Isomelibrary/include -I...
 	for Idir in config_file["Directories"]["includeDir"]:
 		compilation_variables["includes_paths"] += " -I" + Idir
-	compilation_variables["includes_paths"]  = compilation_variables["includes_paths"][1:] #remove first whitespace
+	compilation_variables["includes_paths"]  = compilation_variables["includes_paths"][1:] # remove first whitespace
 
 	# source dir where the source code file are located
 	compilation_variables["src_paths"] = config_file["Directories"]["sourceDir"]
@@ -140,6 +147,9 @@ def parse_config_json(optimization: bool) -> None:
 
 
 def ismodified(filename: str) -> bool:
+	"""
+	Given a filename return if it has been modified
+	"""
 
 	global new_hashes
 	global old_hashes
@@ -151,6 +161,9 @@ def ismodified(filename: str) -> bool:
 
 
 def calculate_new_hashes() -> None:
+	"""
+	Calculate the hashes for all the source files
+	"""
 
 	global compilation_variables, sha1
 
@@ -170,6 +183,9 @@ def calculate_new_hashes() -> None:
 
 
 def load_old_hashes() -> None:
+	"""
+	Load in old_hashes the hashes present in files_hash.txt
+	"""
 
 	global old_hashes
 
@@ -187,6 +203,9 @@ def load_old_hashes() -> None:
 
 
 def get_to_compile() -> list:
+	"""
+	return a list of files and their directories that need to be compiled
+	"""
 
 	global compilation_variables
 
@@ -210,6 +229,9 @@ def get_to_compile() -> list:
 
 
 def save_new_hashes() -> None:
+	"""
+	Write all the hashes on files_hash.txt
+	"""
 
 	global new_hashes
 	
@@ -220,6 +242,9 @@ def save_new_hashes() -> None:
 
 
 def compile(to_compile: list) -> bool:
+	"""
+	Compile all correct files with the specified arguments
+	"""
 
 	global compilation_variables
 
@@ -239,6 +264,9 @@ def compile(to_compile: list) -> bool:
 
 
 def link() -> bool:
+	"""
+	Link togheter all the files that have been compiled with the specified libraries and arguments
+	"""
 
 	global compilation_variables
 
@@ -270,7 +298,7 @@ def link() -> bool:
 	for file in to_link:
 		Link_cmd += f" {obj_dir}/{file[0]}{file[1]}.o"
 	
-	Link_cmd += compilation_variables["libraries_names"]
+	Link_cmd += " " + compilation_variables["libraries_names"]
 
 	print(Link_cmd)
 	return print_stdout(exe_command(Link_cmd))
