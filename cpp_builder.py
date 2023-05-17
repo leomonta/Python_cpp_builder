@@ -12,6 +12,10 @@
 # Done: skip compilation or linking if there are no new or modified files
 # TODO: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
 # TODO: identify each header and figure out which source file include which
+# TODO: if a config value is empty prevent double space in cmd agument
+# TODO: add a type config value for gcc | msvc so i can devcide which cmd args to use -> -c | /c
+# Done: added specific linker exec
+# TODO: use compiler exec of no linker exec is present
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
@@ -21,64 +25,59 @@
 
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
-import json # parse cpp_builder_config.json
+import json  # parse cpp_builder_config.json
 from colorama import Fore, init
-import hashlib # for calculating hashes
-import sys # for arguments parsing
-
+import hashlib  # for calculating hashes
+import sys  # for arguments parsing
 
 includes_variable = {
-	"all_includes" : [],
-	"src_references": []
+    # names of all includes dir + name
+    "all_includes": [],
+
+    # file: list of references (indices) to include files
+    "src_references": {}
 }
 
-
 compilation_variables = {
-	# arguments to feed to the compiler and the linker
-	"compiler_args": "",
-	"linker_args":"",
+    # arguments to feed to the compiler and the linker
+    "compiler_args": "",
+    "linker_args": "",
 
-	# the string composed by the names of the libraries -> "-lpthread -lm ..."
-	"libraries_names" : "",
+    # the string composed by the names of the libraries -> "-lpthread -lm ..."
+    "libraries_names": "",
 
-	# the string composed by the path of the libraries -> "-L./path/to/lib -L..."
-	"libraries_paths": "",
+    # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+    "libraries_paths": "",
 
-	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
-	"includes_paths": "",
+    # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+    "includes_paths": "",
+    "includes_dirs": [],
 
-	# directories containing the names of the source directories 
-	"src_paths" : [],
+    # directories containing the names of the source directories
+    "src_dirs": [],
 
-	# name of the compiler executable
-	"compiler_exec": "",
+    # name of the compiler and linker executable
+    "compiler_exec": "",
+    "linker_exec": "",
 
-	# base directory of the project
-	"project_path":"",
+    # base directory of the project
+    "project_path": "",
 
-	# directory where to leave the compiled object files
-	"objects_path": "",
+    # directory where to leave the compiled object files
+    "objects_path": "",
 
-	# path to the directory where to leave the final executable
-	"exe_path": "",
+    # path to the directory where to leave the final executable
+    "exe_path": "",
 
-	# name of the final executable
-	"exe_name" : ""
+    # name of the final executable
+    "exe_name": ""
 }
 
 sha1 = hashlib.sha1()
 old_hashes = {}
 new_hashes = {}
 
-source_files_extensions = ["c", "cpp", "cxx", "c++", "cc", "C"]
-
-
-def get_includes():
-	global compilation_variables, includes_variable
-
-	for include_directory in compilation_variables["includes_paths"]: # loop trough all the include directories
-		for file in os.listdir(include_directory):
-			includes_variable["all_includes"].append(file)
+source_files_extensions = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
 
 
 def print_stdout(mexage: tuple) -> bool:
@@ -86,11 +85,11 @@ def print_stdout(mexage: tuple) -> bool:
 	out = mexage[1].split("\n")[0:-1]
 
 	res = True
-	
+
 	for i in range(len(out)):
 		if "error" in out[i]:
 			print(Fore.RED, out[i])
-			res = True
+			res = False
 		elif "warning" in out[i]:
 			print(Fore.BLUE, out[i])
 		elif "note" in out[i]:
@@ -130,10 +129,11 @@ def parse_config_json(optimization: bool) -> None:
 
 	# get the compiler executable {gcc, g++, clang, etc}
 	compilation_variables["compiler_exec"] = config_file["compilerExe"]
+	compilation_variables["linker_exec"] = config_file["linkerExe"]
 
 	# --- Libraries path and names ---
 
-	# create the library args -> -lsomelib -lsomelib2 -l...
+	# create the library args -> -lSomelib -lSomelib2 -l...
 	if optimization:
 		for lname in config_file["libraries"]["Release"]:
 			compilation_variables["libraries_names"] += " -l" + lname
@@ -141,19 +141,20 @@ def parse_config_json(optimization: bool) -> None:
 		for lname in config_file["libraries"]["Debug"]:
 			compilation_variables["libraries_names"] += " -l" + lname
 
-	compilation_variables["libraries_names"] = compilation_variables["libraries_names"][1:] # remove first whitespace
+	compilation_variables["libraries_names"] = compilation_variables["libraries_names"][1:]  # remove first whitespace
 
-	# create the libraries path args -> -Lsomelibrary/lib -L...
+	# create the libraries path args -> -LSomelibrary/lib -L...
 	for Lname in config_file["Directories"]["libraryDir"]:
 		compilation_variables["libraries_paths"] += " -L" + Lname
-	compilation_variables["libraries_paths"] = compilation_variables["libraries_paths"][1:] # remove first whitespace
+	compilation_variables["libraries_paths"] = compilation_variables["libraries_paths"][1:]  # remove first whitespace
 
 	# --- Include and Source Directories
 
-	# create the includes args -> -Iinclude -Isomelibrary/include -I...
+	compilation_variables["includes_dirs"] = config_file["Directories"]["includeDir"]
+	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in config_file["Directories"]["includeDir"]:
 		compilation_variables["includes_paths"] += " -I" + Idir
-	compilation_variables["includes_paths"]  = compilation_variables["includes_paths"][1:] # remove first whitespace
+	compilation_variables["includes_paths"] = compilation_variables["includes_paths"][1:]  # remove first whitespace
 
 	# source dir where the source code file are located
 	compilation_variables["src_paths"] = config_file["Directories"]["sourceDir"]
@@ -166,10 +167,10 @@ def parse_config_json(optimization: bool) -> None:
 
 	# compiler and linker argument
 	if optimization:
-		compilation_variables["compiler_args"]  = config_file["Arguments"]["Release"]["Compiler"]
+		compilation_variables["compiler_args"] = config_file["Arguments"]["Release"]["Compiler"]
 		compilation_variables["linker_args"] = config_file["Arguments"]["Release"]["Linker"]
 	else:
-		compilation_variables["compiler_args"]  = config_file["Arguments"]["Debug"]["Compiler"]
+		compilation_variables["compiler_args"] = config_file["Arguments"]["Debug"]["Compiler"]
 		compilation_variables["linker_args"] = config_file["Arguments"]["Debug"]["Linker"]
 
 
@@ -192,10 +193,10 @@ def calculate_new_hashes() -> None:
 	Calculate the hashes for all the source files
 	"""
 
-	global compilation_variables, sha1
+	global compilation_variables, sha1, includes_variable
 
-	for source_directory in compilation_variables["src_paths"]: # loop trough all the source files directories
-		for file in os.listdir(source_directory): # loop trough every file of each directory
+	for source_directory in compilation_variables["src_paths"]:  # loop trough all the source files directories
+		for file in os.listdir(source_directory):  # loop trough every file of each directory
 
 			# sha1 hash calculation
 
@@ -236,12 +237,13 @@ def get_to_compile() -> list:
 
 	global compilation_variables
 
-	to_compile = [] # contains directory and filename
+	to_compile = []  # contains directory and filename
+
 	# checking which file need to be compiled
-	for source_directory in compilation_variables["src_paths"]: # loop trough all the source files directories
-		for file in os.listdir(source_directory): # loop trough every file of each directory
+	for source_directory in compilation_variables["src_paths"]:  # loop trough all the source files directories
+		for file in os.listdir(source_directory):  # loop trough every file of each directory
 			# i need to differentiate different parts
-			# extension: to decide if it has to be compiled or not and to name it 
+			# extension: to decide if it has to be compiled or not and to name it
 			# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
 			# source dir: necessary for differentiate eventual same-named files on different dirs
 
@@ -250,7 +252,7 @@ def get_to_compile() -> list:
 				temp = file.split(".")
 				ext = temp.pop(-1)
 				file_name = "".join(temp)
-				if (ext in source_files_extensions): # check if it is a source file
+				if (ext in source_files_extensions):  # check if it is a source file
 					to_compile.append([source_directory, file_name, ext])
 	return to_compile
 
@@ -261,7 +263,7 @@ def save_new_hashes() -> None:
 	"""
 
 	global new_hashes
-	
+
 	with open("files_hash.txt", "w") as f:
 		for i in new_hashes.keys():
 			f.write(i + ":")
@@ -297,35 +299,35 @@ def link() -> bool:
 
 	global compilation_variables
 
-	to_link = [] # contains directory and filename
+	to_link = []  # contains directory and filename
 	# checking which file need to be compiled
-	for source_directory in compilation_variables["src_paths"]: # loop trough all the source files directories
-		for file in os.listdir(source_directory): # loop trough every file of each directory
+	for source_directory in compilation_variables["src_paths"]:  # loop trough all the source files directories
+		for file in os.listdir(source_directory):  # loop trough every file of each directory
 			# i need to differentiate different parts
-			# extension: to decide if it has to be compiled or not and to name it 
+			# extension: to decide if it has to be compiled or not and to name it
 			# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
 			# source dir: necessary for differentiate eventual same-named files on different dirs
 
 			temp = file.split(".")
 			ext = temp.pop(-1)
 			file_name = "".join(temp)
-			if (ext in source_files_extensions): # check if it is a source file
+			if (ext in source_files_extensions):  # check if it is a source file
 				to_link.append([source_directory, file_name, ext])
 
-
-	compiler_exec = compilation_variables["compiler_exec"]
+	linker_exec = compilation_variables["linker_exec"]
 	linker_args = compilation_variables["linker_args"]
 	exe_path = compilation_variables["exe_path"]
 	exe_name = compilation_variables["exe_name"]
 	libraries_paths = compilation_variables["libraries_paths"]
 	obj_dir = compilation_variables["objects_path"]
 
-	Link_cmd = f"{compiler_exec} {linker_args} -o {exe_path}/{exe_name} {libraries_paths}"
+	Link_cmd = f"{linker_exec} {linker_args} -o {exe_path}/{exe_name} {libraries_paths}"
 
 	for file in to_link:
 		Link_cmd += f" {obj_dir}/{file[0]}{file[1]}.o"
 
-	Link_cmd += " " + compilation_variables["libraries_names"]
+	if (len(compilation_variables["libraries_names"]) > 0):
+		Link_cmd += " " + compilation_variables["libraries_names"]
 
 	print(Link_cmd)
 	return print_stdout(exe_command(Link_cmd))
@@ -417,7 +419,6 @@ def create_makefile():
 		mf.write(make_file)
 
 
-
 def main():
 
 	global compilation_variables
@@ -441,7 +442,6 @@ def main():
 		f = open("files_hash.txt", "w")
 		f.close()
 
-
 	if "-a" not in sys.argv:
 		# load old hashes
 		load_old_hashes()
@@ -459,7 +459,6 @@ def main():
 	if not to_compile:
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
 		return
-
 
 	# compile each file and show the output,
 	# and check for errors
