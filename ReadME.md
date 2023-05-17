@@ -1,7 +1,11 @@
 # CPP python building tool
 ## Compile and link cpp projects 
 
-#### the cpp_builderconfig.json structure
+### Options:
+	-a	rebuild the entire project
+	-o	utilize optimization options arguments and libraries, default is debug 
+
+### the cpp_builderconfig.json structure
 
 <pre>
 {
@@ -21,12 +25,23 @@
 		"objectsDir": "directory where the .o files will be saved",
 		"exeDir": "directory where the exe file will be saved"
 	},
-	"libraries": [
-		"name of the libraries used, without the heading -l"
-	],
+	"libraries": {
+		"Debug" : [
+			"name of the debug libraries used, without the heading -l",
+		],
+		"Release" : [
+			"name of the release libraries used, without the heading -l",
+		]
+	}
 	"Arguments": {
-		"Compiler": "additional arguments for the compiler, like c standard or warnings
-		"Linker": "additiona arguments for the linker"
+		"Debug" : {
+			"Compiler": "additional arguments for the compiler, like c standard or warnings, for the debug mode"
+			"Linker": "additiona arguments for the linker, for the debug mode"
+		}, 
+		"Release" : {
+			"Compiler": "additional arguments for the compiler, like c standard or warnings, for the release mode"
+			"Linker": "additiona arguments for the linker, for the release mode"
+		}
 	}
 }
 </pre>

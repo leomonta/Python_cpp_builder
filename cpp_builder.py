@@ -10,13 +10,13 @@
 # Done: compile and link files
 # Done: check for newer version of source files
 # Done: skip compilation or linking if there are no new or modified files
-# TODO: check for newer versione of header files (check in every file if that header is included, if it is rebuild)
+# TODO: check for newer versione of header files (check in every file if that header is included, if it has to be rebuilt)
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
 # Done: retrive include dirs, libs and args from a file
 # Done: retrive target directories for exe, objects, include and source files
-# TODO: support for debug and optimization compilation
+# Done: support for debug and optimization compilation, compiler flag and libraries
 
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
@@ -75,7 +75,7 @@ def exe_command(command: str) -> tuple:
 	return stream.communicate()  # execute the command and get the result
 
 
-def parse_config_json() -> None:
+def parse_config_json(optimization: bool) -> None:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	"""
@@ -93,8 +93,12 @@ def parse_config_json() -> None:
 	# --- Libraries path and names ---
 
 	# create the library args -> -lsomelib -lsomelib2 -l...
-	for lname in config_file["libraries"]:
-		libraries[0] += " -l" + lname
+	if optimization:
+		for lname in config_file["libraries"]["Release"]:
+			libraries[0] += " -l" + lname
+	else:
+		for lname in config_file["libraries"]["Debug"]:
+			libraries[0] += " -l" + lname
 
 	# create the libraries path args -> -Lsomelibrary/lib -L...
 	for Lname in config_file["Directories"]["libraryDir"]:
@@ -118,8 +122,12 @@ def parse_config_json() -> None:
 	# --- Compiling an linking arguments ---
 
 	# compiler and linker argument
-	args[0] = config_file["Arguments"]["Compiler"]
-	args[1] = config_file["Arguments"]["Linker"]
+	if optimization:
+		args[0] = config_file["Arguments"]["Release"]["Compiler"]
+		args[1] = config_file["Arguments"]["Release"]["Linker"]
+	else:
+		args[0] = config_file["Arguments"]["Debug"]["Compiler"]
+		args[1] = config_file["Arguments"]["Debug"]["Linker"]
 
 
 def ismodified(filename: str) -> bool:
@@ -151,18 +159,17 @@ def calculate_new_hashes() -> None:
 
 def load_old_hashes() -> None:
 	global old_hashes
-	if "-a" not in sys.argv:
-		# read hashes from files and add them to old_hashes array
-		with open("files_hash.txt", "r") as f:
-			while True:
-				data = f.readline()
-				if not data:
-					break
-				temp = data.split(":")
+	# read hashes from files and add them to old_hashes array
+	with open("files_hash.txt", "r") as f:
+		while True:
+			data = f.readline()
+			if not data:
+				break
+			temp = data.split(":")
 
-				# remove trailing newline
-				temp[1] = temp[1].replace("\n", "")
-				old_hashes[temp[0]] = temp[1]
+			# remove trailing newline
+			temp[1] = temp[1].replace("\n", "")
+			old_hashes[temp[0]] = temp[1]
 
 
 def get_to_compile() -> list:
@@ -237,7 +244,11 @@ def link() -> bool:
 
 
 def main():
-	parse_config_json()
+
+	if "-o" in sys.argv:
+		parse_config_json(True)
+	else:
+		parse_config_json(False)
 
 	os.chdir(projectDir)
 
@@ -250,8 +261,9 @@ def main():
 		f.close()
 
 
-	# load old hashes
-	load_old_hashes()
+	if "-a" not in sys.argv:
+		# load old hashes
+		load_old_hashes()
 
 	# obtain new hashes
 	calculate_new_hashes()
