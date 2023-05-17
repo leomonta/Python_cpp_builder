@@ -14,9 +14,11 @@
 # TODO if error occurs stop compilation and return 1
 # TODO retrive include dirs, libs and args from a file
 # TODO retrive target directories for exe, objects, include and source files
+# TODO support for debug and optimization compilation
 
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
+import json  # parse cpp_builder_config.json
 
 
 def exe_command(command):
@@ -31,22 +33,74 @@ def exe_command(command):
 	return out
 
 
-args = "-Wshadow"
-libs = "-lraylib"
-includes = "-Itest/include"
-srcDirs = ["src"]
+# 0 -> compiler args, 1 -> linker args
+args = ["", ""]
+# 0 -> the library to link with (-l), 1 -> the libraries path (-L)
+libraries = ["", ""]
+includes = ""
+srcDirs = []
 to_compile = []
-baseDir = "test"
+projectDir = ""
+# 0-> object target Directory, 1 -> exe target Directory, 2 -> exe name
+targetDir = ["", "", ""]
+
+
+def parse_config_json():
+	"""
+	Set the global variables by reading the from cpp_builder_config.json
+	"""
+	global includes, projectDir, targetDir, args, libraries, srcDirs
+
+	# load and parse the file
+	config_file = json.load(open("cpp_builder_config.json"))
+
+	# base directory for ALL the other directories and files
+	projectDir = config_file["projectDir"]
+
+	# Directories
+	# create the includes args -> -Iinclude -Isomelibrary/include -I...
+	for Idir in config_file["Directories"]["includeDir"]:
+		includes += "-I" + Idir + " "
+	includes = includes.removesuffix(" ")  # remove trailing space
+
+	# create the libraries path args -> -Lsomelibrary/lib -L...
+	for Lname in config_file["Directories"]["libraryDir"]:
+		libraries[1] += "-L" + Lname + " "
+	libraries[1] = libraries[1].removesuffix(" ")  # remove trailing space
+
+	# source dir where the source code file are located
+	srcDirs = config_file["Directories"]["sourceDir"]
+
+	targetDir[0] = config_file["Directories"]["objectsDir"]
+	targetDir[1] = config_file["Directories"]["exeDir"]
+	targetDir[2] = config_file["exeName"]
+
+	# Arguments
+
+	# compiler and linker argument
+	args[0] = config_file["Arguments"]["Compiler"]
+	args[1] = config_file["Arguments"]["Linker"]
+
+	# create the library args -> -lsomelib -lsomelib2 -l...
+	for lname in config_file["libraries"]:
+		libraries[0] += "-l" + lname + " "
+	libraries[0] = libraries[0].removesuffix(" ")  # remove trailing space
+
+
+parse_config_json()
+
 for sdir in srcDirs:
-	for file in os.listdir(baseDir + "/" + sdir):
-		to_compile.append(baseDir + "/" +sdir + "/" + file)
+	for file in os.listdir(projectDir + "/" + sdir):
+		if (file.split(".")[-1] in ["c", "cpp"]):
+			to_compile.append(projectDir + "/" + sdir + "/" + file)
 
 for file in to_compile:
 	print(file)
-	command = f"g++ {args} {includes} -c -o {file}.o {file}"
-	print(command)
-	res = exe_command(command)
-	print(res[0], res[1])
+#	command = f"g++ {args} {includes} -c -o {file}.o {file}"
+	# print(command)
+	#res = exe_command(command)
+	#print(res[0], res[1])
+
 
 """
 import subprocess

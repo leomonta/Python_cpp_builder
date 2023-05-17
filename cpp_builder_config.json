@@ -1,0 +1,32 @@
+{
+	"projectDir": "test",
+	"exeName": "game.exe",
+	"Directories": {
+		"includeDir": [
+			"include",
+			"ext/glm"
+		],
+		"sourceDir": [
+			"src"
+		],
+		"libraryDir": [
+			"ext/glm/lib",
+			"ext/glew/lib"
+		],
+		"objectsDir": "objs",
+		"exeDir": "exe"
+	},
+	"libraries": [
+		"raylib",
+		"kernel32",
+		"user32l",
+		"shell32",
+		"winmm",
+		"gdi32",
+		"opengl32"
+	],
+	"Arguments": {
+		"Compiler": "-g3 -std=c++2a -Wshadow",
+		"Linker": "-g3"
+	}
+}
