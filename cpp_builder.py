@@ -16,6 +16,7 @@
 # TODO: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
 # Done: added specific linker exec
 # TODO: use compiler exec if no linker exec is present
+# TODO: multithreaded compiling
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
@@ -635,8 +636,8 @@ def main():
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
 		return
 
-	if not os.path.exists("objs"):
-		os.makedirs("objs")
+	if not os.path.exists(settings["objects_path"]):
+		os.makedirs(settings["objects_path"])
 
 	# compile each file and show the output,
 	# and check for errors
