@@ -185,7 +185,7 @@ def exe_command(command: str) -> tuple[str, str]:
 	return stream.communicate()  # execute the command and get the result
 
 
-def parse_config_json(optimization: str) -> None:
+def parse_config_json(optimization: str) -> int:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	the optimization argument decide if debug or release mode
@@ -196,7 +196,12 @@ def parse_config_json(optimization: str) -> None:
 	global settings
 
 	# load and parse the file
-	config_file = json.load(open("cpp_builder_config.json"))
+	config_filename="cpp_builder_config.json"
+	if os.path.isfile(config_filename):
+		config_file = json.load(open(config_filename))
+	else:
+		print(COLS.FG_RED, f"[ERROR]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET);
+		return 0
 
 
 	# --- Scripts settings ---
@@ -315,6 +320,8 @@ def parse_config_json(optimization: str) -> None:
 	if settings["largs"]:
 		settings["largs"] = " " + settings["largs"]
 
+	return 1
+	
 
 def is_modified(filename: str) -> bool:
 	"""
@@ -586,7 +593,8 @@ def main():
 	if "-o" in sys.argv:
 		optimization_mode = "release"
 	
-	parse_config_json(optimization_mode)
+	if not parse_config_json(optimization_mode):
+		sys.exit(1)
 
 
 	# go to the project dir
@@ -634,7 +642,7 @@ def main():
 	# and check for errors
 	if compile(to_compile):
 		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
-		sys.exit(1)
+		sys.exit(2)
 
 
 	# --- Linking ---
@@ -643,7 +651,7 @@ def main():
 
 	if not link(to_compile):
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
-		sys.exit(1)
+		sys.exit(3)
 
 
 	if "post" in settings["scripts"]:
