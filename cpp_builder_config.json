@@ -1,6 +1,7 @@
 {
 	"projectDir": "test",
 	"exeName": "game.exe",
+	"CompilerExe": "g++",
 	"Directories": {
 		"includeDir": [
 			"include",
