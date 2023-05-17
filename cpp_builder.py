@@ -15,7 +15,7 @@
 # TODO: if a config value is empty prevent double space in cmd agument
 # TODO: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
 # Done: added specific linker exec
-# TODO: use compiler exec of no linker exec is present
+# TODO: use compiler exec if no linker exec is present
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
