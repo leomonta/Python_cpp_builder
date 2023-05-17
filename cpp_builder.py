@@ -435,6 +435,22 @@ def link(to_compile: list[str]) -> bool:
 
 	global settings
 
+	to_link: list[str] = []
+
+	for file in settings["source_files"]:  # loop trough every file of each directory
+
+		# get file extension
+		temp = file.split(".")
+		ext = temp.pop(-1)
+
+		# get filename and relative source dir
+		path: list[str] = temp[0].split("/")
+		file_name: str = path[-1]
+		source_directory: str = "/".join(path[:-1])
+
+		if (ext in source_files_extensions):  # check if it is a source file
+			to_link.append([source_directory, file_name, ext])
+
 	lexe = settings["linker"]
 	largs = settings["largs"]
 	epn = settings["exe_path_name"]
@@ -444,7 +460,7 @@ def link(to_compile: list[str]) -> bool:
 
 	Link_cmd = f'{lexe}{largs} -{oargs["output_linker"]} {epn}{Libs}'
 
-	for file in to_compile:
+	for file in to_link:
 		obj_name: str = "".join(file[0].split("/"))
 
 		Link_cmd += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
