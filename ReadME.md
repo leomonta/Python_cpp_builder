@@ -7,6 +7,7 @@
 {
     "projectDir": "Base directory of the entire project"
     "exeName": "Name of th executable produced",
+	"compilerExe" : "Path to the compiler executable",
     "Directories": { 
         "includeDir": [
             "include directories (h, hpp files)"
@@ -17,7 +18,7 @@
         "libraryDir": [
             "every library directory"
         ],
-        "objectsDir": "directory where the .o files will be saved"
+        "objectsDir": "directory where the .o files will be saved",
         "exeDir": "directory where the exe file will be saved"
     },
     "libraries": [
