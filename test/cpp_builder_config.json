@@ -1,32 +1,24 @@
 {
 	"projectDir": "test",
-	"exeName": "game.exe",
+	"exeName": "game.bin",
 	"compilerExe": "g++",
 	"linkerExe": "g++",
 	"Directories": {
 		"includeDir": [
-			"include",
-			"ext"
+			"include"
 		],
 		"sourceDir": [
 			"src"
 		],
 		"libraryDir": [
-			"ext/raylib/lib"
 		],
 		"objectsDir": "objs",
-		"exeDir": "exe"
+		"exeDir": "bin"
 	},
 	"libraries": {
 		"Debug": [
-			"raylib",
-			"dl",
-			"pthread"
 		],
 		"Release": [
-			"raylib",
-			"dl",
-			"pthread"
 		]
 	},
 	"Arguments": {

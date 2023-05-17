@@ -29,50 +29,52 @@ import json  # parse cpp_builder_config.json
 import hashlib  # for calculating hashes
 import sys  # for arguments parsing
 
-includes_variable = {
-    # names of all includes dir + name
-    "all_includes": [],
 
-    # file: list of references (indices) to include files
-    "src_references": {}
+includes_variable = {
+	# names of all includes dir + name
+	"all_includes": [],
+
+	# file: list of references (indices) to include files
+	"src_references": {}
 }
 
 compilation_variables = {
-    # arguments to feed to the compiler and the linker
-    "compiler_args": "",
-    "linker_args": "",
+	# arguments to feed to the compiler and the linker
+	"compiler_args": "",
+	"linker_args": "",
 
-    # the string composed by the names of the libraries -> "-lpthread -lm ..."
-    "libraries_names": "",
+	# the string composed by the names of the libraries -> "-lpthread -lm ..."
+	"libraries_names": "",
 
-    # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
-    "libraries_paths": "",
+	# the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+	"libraries_paths": "",
 
-    # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
-    "includes_paths": "",
-    "includes_dirs": [],
+	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+	"includes_paths": "",
+	"includes_files": [],
 
-    # directories containing the names of the source directories
-    "src_dirs": [],
+	# directories containing the names of the source directories
+	"source_files": [],
 
-    # name of the compiler and linker executable
-    "compiler_exec": "",
-    "linker_exec": "",
 
-    # base directory of the project
-    "project_path": "",
+	# name of the compiler and linker executable
+	"compiler_exec": "",
+	"linker_exec": "",
 
-    # directory where to leave the compiled object files
-    "objects_path": "",
+	# base directory of the project
+	"project_path": "",
 
-    # path to the directory where to leave the final executable
-    "exe_path": "",
+	# directory where to leave the compiled object files
+	"objects_path": "",
 
-    # name of the final executable
-    "exe_name": ""
+	# path to the directory where to leave the final executable
+	"exe_path": "",
+
+	# name of the final executable
+	"exe_name": ""
 }
 
-# 0 gcc / clang 
+# 0 gcc / clang
 # 1 msvc
 compiler_type = 0
 
@@ -84,50 +86,51 @@ source_files_extensions = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
 
 Common_args = {
 	"Compile_only": ["c", "c"],
-	"Output_compiler" : ["o", "Fo"],
-	"Output_linker" : ["o", "OUT:"],
+	"Output_compiler": ["o", "Fo"],
+	"Output_linker": ["o", "OUT:"],
 	"Object_extension": ["o", "obj"]
 }
 
+
 class COLS:
 
-	FG_BLACK         = '\033[30m'
-	FG_RED           = '\033[31m'
-	FG_GREEN         = '\033[32m'
-	FG_YELLOW        = '\033[33m'
-	FG_BLUE          = '\033[34m'
-	FG_MAGENTA       = '\033[35m'
-	FG_CYAN          = '\033[36m'
-	FG_WHITE         = '\033[37m'
+	FG_BLACK = '\033[30m'
+	FG_RED = '\033[31m'
+	FG_GREEN = '\033[32m'
+	FG_YELLOW = '\033[33m'
+	FG_BLUE = '\033[34m'
+	FG_MAGENTA = '\033[35m'
+	FG_CYAN = '\033[36m'
+	FG_WHITE = '\033[37m'
 
-	BG_BLACK         = '\033[40m'
-	BG_RED           = '\033[41m'
-	BG_GREEN         = '\033[42m'
-	BG_YELLOW        = '\033[43m'
-	BG_BLUE          = '\033[44m'
-	BG_MAGENTA       = '\033[45m'
-	BG_CYAN          = '\033[46m'
-	BG_WHITE         = '\033[47m'
+	BG_BLACK = '\033[40m'
+	BG_RED = '\033[41m'
+	BG_GREEN = '\033[42m'
+	BG_YELLOW = '\033[43m'
+	BG_BLUE = '\033[44m'
+	BG_MAGENTA = '\033[45m'
+	BG_CYAN = '\033[46m'
+	BG_WHITE = '\033[47m'
 
-	FG_LIGHT_BLACK   = '\033[90m'
-	FG_LIGHT_RED     = '\033[91m'
-	FG_LIGHT_GREEN   = '\033[92m'
-	FG_LIGHT_YELLOW  = '\033[93m'
-	FG_LIGHT_BLUE    = '\033[94m'
+	FG_LIGHT_BLACK = '\033[90m'
+	FG_LIGHT_RED = '\033[91m'
+	FG_LIGHT_GREEN = '\033[92m'
+	FG_LIGHT_YELLOW = '\033[93m'
+	FG_LIGHT_BLUE = '\033[94m'
 	FG_LIGHT_MAGENTA = '\033[95m'
-	FG_LIGHT_CYAN    = '\033[96m'
-	FG_LIGHT_WHITE   = '\033[97m'
+	FG_LIGHT_CYAN = '\033[96m'
+	FG_LIGHT_WHITE = '\033[97m'
 
-	BG_LIGHT_BLACK   = '\033[100m'
-	BG_LIGHT_RED     = '\033[101m'
-	BG_LIGHT_GREEN   = '\033[102m'
-	BG_LIGHT_YELLOW  = '\033[103m'
-	BG_LIGHT_BLUE    = '\033[104m'
+	BG_LIGHT_BLACK = '\033[100m'
+	BG_LIGHT_RED = '\033[101m'
+	BG_LIGHT_GREEN = '\033[102m'
+	BG_LIGHT_YELLOW = '\033[103m'
+	BG_LIGHT_BLUE = '\033[104m'
 	BG_LIGHT_MAGENTA = '\033[105m'
-	BG_LIGHT_CYAN    = '\033[106m'
-	BG_LIGHT_WHITE   = '\033[107m'
+	BG_LIGHT_CYAN = '\033[106m'
+	BG_LIGHT_WHITE = '\033[107m'
 
-	RESET            = '\033[0m'
+	RESET = '\033[0m'
 
 
 def print_stdout(mexage: tuple) -> bool:
@@ -154,10 +157,12 @@ def print_stdout(mexage: tuple) -> bool:
 
 def exe_command(command: str) -> tuple:
 	"""
-	execute the given command and return the output -> [stdout, stderr]
-	"""
+		execute the given command and return the output -> [stdout, stderr]
+		"""
 
-	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
+	stream = subprocess.Popen(
+		command.split(" "), stderr=subprocess.PIPE, universal_newlines=True
+	)
 
 	return stream.communicate()  # execute the command and get the result
 
@@ -190,14 +195,14 @@ def parse_config_json(optimization: str) -> None:
 	for lname in config_file["libraries"][optimization]:
 		compilation_variables["libraries_names"] += " -l" + lname
 
-
 	# create the libraries path args -> -LSomelibrary/lib -L...
 	for Lname in config_file["Directories"]["libraryDir"]:
 		compilation_variables["libraries_paths"] += " -L" + Lname
 
 	# --- Include and Source Directories
 
-	compilation_variables["includes_dirs"] = config_file["Directories"]["includeDir"]
+	compilation_variables["includes_dirs"] = config_file["Directories"][
+		"includeDir"]
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in config_file["Directories"]["includeDir"]:
 		compilation_variables["includes_paths"] += " -I" + Idir
@@ -205,26 +210,31 @@ def parse_config_json(optimization: str) -> None:
 	# source dir where the source code file are located
 	compilation_variables["src_paths"] = config_file["Directories"]["sourceDir"]
 
-	compilation_variables["objects_path"] = config_file["Directories"]["objectsDir"]
+	compilation_variables["objects_path"] = config_file["Directories"][
+		"objectsDir"]
 	compilation_variables["exe_path"] = config_file["Directories"]["exeDir"]
 	compilation_variables["exe_name"] = config_file["exeName"]
 
 	# --- Compiler an Linker arguments ---
 
-	compilation_variables["compiler_args"] = config_file["Arguments"][optimization]["Compiler"]
-	compilation_variables["linker_args"] = config_file["Arguments"][optimization]["Linker"]
+	compilation_variables["compiler_args"] = config_file["Arguments"][
+		optimization]["Compiler"]
+	compilation_variables["linker_args"] = config_file["Arguments"][optimization
+																   ]["Linker"]
 
 	if compilation_variables["compiler_args"]:
-		compilation_variables["compiler_args"] = " " + compilation_variables["compiler_args"]
+		compilation_variables["compiler_args"
+							 ] = " " + compilation_variables["compiler_args"]
 
 	if compilation_variables["linker_args"]:
-		compilation_variables["linker_args"] = " " + compilation_variables["linker_args"]
+		compilation_variables["linker_args"
+							 ] = " " + compilation_variables["linker_args"]
 
 
 def is_modified(filename: str) -> bool:
 	"""
-	Given a filename return if it has been modified
-	"""
+		Given a filename return if it has been modified
+		"""
 
 	global new_hashes
 	global old_hashes
@@ -242,25 +252,30 @@ def calculate_new_hashes() -> None:
 
 	global compilation_variables, sha1, includes_variable
 
-	for source_directory in compilation_variables["src_paths"]:  # loop trough all the source files directories
-		for file in os.listdir(source_directory):  # loop trough every file of each directory
+	targets: str = []
 
-			# sha1 hash calculation
+	for path, subdirs, files in os.walk(compilation_variables["src_paths"][0]):
+		for name in files:
+			targets.append(f"{path}/{name}")
 
-			with open(f"{source_directory}/{file}", "r+b") as f:
-				sha1.update(f.read())
+	for file in targets:  # loop trough every file of each directory
 
-			# insert in the new_hashes dict the key filename with the value hash
-			new_hashes[source_directory + file] = sha1.hexdigest()  # create the new hash
+		# sha1 hash calculation
 
-			# i need to re-instantiate the object to empty it
-			sha1 = hashlib.sha1()
+		with open(f"{file}", "r+b") as f:
+			sha1.update(f.read())
+
+		# insert in the new_hashes dict the key filename with the value hash
+		new_hashes[file] = sha1.hexdigest()  # create the new hash
+
+		# i need to re-instantiate the object to empty it
+		sha1 = hashlib.sha1()
 
 
 def load_old_hashes() -> None:
 	"""
-	Load in old_hashes the hashes present in files_hash.txt
-	"""
+		Load in old_hashes the hashes present in files_hash.txt
+		"""
 
 	global old_hashes
 
@@ -285,22 +300,29 @@ def get_to_compile() -> list:
 	global compilation_variables
 
 	to_compile = []  # contains directory and filename
+	targets: str = []
+
+	for path, subdirs, files in os.walk(compilation_variables["src_paths"][0]):
+		for name in files:
+			targets.append(f"{path}/{name}")
 
 	# checking which file need to be compiled
-	for source_directory in compilation_variables["src_paths"]:  # loop trough all the source files directories
-		for file in os.listdir(source_directory):  # loop trough every file of each directory
-			# i need to differentiate different parts
-			# extension: to decide if it has to be compiled or not and to name it
-			# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
-			# source dir: necessary for differentiate eventual same-named files on different dirs
+	for file in targets:  # loop trough every file of each directory
+		# i need to differentiate different parts
+		# extension: to decide if it has to be compiled or not and to name it
+		# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
+		# source dir: necessary for differentiate eventual same-named files on different dirs
 
-			if is_modified(source_directory + file):
+		if is_modified(file):
 
-				temp = file.split(".")
-				ext = temp.pop(-1)
-				file_name = "".join(temp)
-				if (ext in source_files_extensions):  # check if it is a source file
-					to_compile.append([source_directory, file_name, ext])
+			temp = file.split(".")
+			ext = temp.pop(-1)
+			tpath: str = temp[0]
+			path: list[str] = tpath.split("/")
+			file_name: str = path[-1]
+			source_directory: str = "/".join(path[:-1])
+			if (ext in source_files_extensions):  # check if it is a source file
+				to_compile.append([source_directory, file_name, ext])
 	return to_compile
 
 
@@ -332,7 +354,8 @@ def compile(to_compile: list) -> bool:
 	obj_dir = compilation_variables["objects_path"]
 
 	for file in to_compile:
-		command = f"{compiler_exec}{compiler_args}{includes} -{Common_args['Compile_only'][compiler_type]} -{Common_args['Output_compiler'][compiler_type]} {obj_dir}/{file[0]}{file[1]}.{Common_args['Object_extension'][compiler_type]} {file[0]}/{file[1]}.{file[2]}"
+		obj_pathname: str = "".join(file[0].split("/"))
+		command = f"{compiler_exec}{compiler_args}{includes} -{Common_args['Compile_only'][compiler_type]} -{Common_args['Output_compiler'][compiler_type]} {obj_dir}/{obj_pathname}{file[1]}.{Common_args['Object_extension'][compiler_type]} {file[0]}/{file[1]}.{file[2]}"
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -382,7 +405,7 @@ def link() -> bool:
 def create_makefile():
 
 	# first debug options
-	parse_config_json(False)
+	parse_config_json("Debug")
 	make_file = ""
 
 	# variables
@@ -430,14 +453,14 @@ def create_makefile():
 	make_file += '\nDCompile: \n'
 
 	for file in to_compile:
-		make_file += f"	$(CC) $(DCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n"
+		make_file += f'	$(CC) $(DCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n'
 
 	make_file += '\nDLink: \n'
 
 	make_file += f'	$(CC) $(DLinkerArgs) -o $(BinName) $(DLibrariesPaths)'
 
 	for file in to_compile:
-		make_file += f" $(ObjsDir)/{file[0]}{file[1]}.o"
+		make_file += f'	$(ObjsDir)/{file[0]}{file[1]}.o'
 
 	make_file += f' $(DLibrariesNames)\n'
 
@@ -446,7 +469,7 @@ def create_makefile():
 	make_file += '\nRCompile: \n'
 
 	for file in to_compile:
-		make_file += f"	$(CC) $(RCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n"
+		make_file += f'	$(CC) $(RCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n'
 
 	make_file += '\nRLink: \n'
 
@@ -461,7 +484,7 @@ def create_makefile():
 	make_file += '	rm -r -f objs/*\n'
 	make_file += '	rm -r -f $(BinName)\n'
 
-	with open("Makefile", "w+") as mf:
+	with open('Makefile', 'w+') as mf:
 		mf.write(make_file)
 
 
@@ -469,45 +492,60 @@ def main():
 
 	global compilation_variables
 
+	# makefile option
 	if "-e" in sys.argv:
 		create_makefile()
 		return
 
+ 
+	# Release or debug mode
+	optimization_mode: str = "Debug"
 	if "-o" in sys.argv:
-		parse_config_json("Release")
-	else:
-		parse_config_json("Debug")
+		optimization_mode = "Release"
+	
+	parse_config_json(optimization_mode)
 
+
+	# go to the project dir
 	os.chdir(compilation_variables["project_path"])
+
 
 	# create file if it does not exist
 	if not os.path.exists("files_hash.txt"):
 		f = open("files_hash.txt", "w")
 		f.close()
 
+
+	# by not loading old hashes they all look new
 	if "-a" not in sys.argv:
 		# load old hashes
 		load_old_hashes()
 
+
 	# obtain new hashes
 	calculate_new_hashes()
 
+
 	# get the file needed to compile
 	to_compile = get_to_compile()
+
 
 	# --- Compiling ---
 
 	print(COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
 
+	# if to_compile is empty, no need to do anything
 	if not to_compile:
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
 		return
+
 
 	# compile each file and show the output,
 	# and check for errors
 	if compile(to_compile):
 		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
 		sys.exit(1)
+
 
 	# --- Linking ---
 
@@ -516,6 +554,7 @@ def main():
 	if not link():
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(1)
+
 
 	save_new_hashes()
 

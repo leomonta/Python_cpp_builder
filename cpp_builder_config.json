@@ -1,42 +1,45 @@
 {
-	"projectDir": "test",
-	"exeName": "game.exe",
-	"compilerExe": "g++",
-	"linkerExe": "g++",
-	"Directories": {
-		"includeDir": [
+	"compiler": {
+		"compiler_style": "gcc",
+		"compiler_exe": "g++",
+		"linker_exe": "g++"
+	},
+	
+	"directories": {
+		"project_dir": "test",
+		"include_dirs": [
 			"include",
 			"ext"
 		],
-		"sourceDir": [
+		"source_dirs": [
 			"src"
 		],
-		"libraryDir": [
-			"ext/raylib/lib"
-		],
-		"objectsDir": "objs",
-		"exeDir": "exe"
+		"temp_dir": "objs",
+		"exe_dir": "bin"
 	},
-	"libraries": {
-		"Debug": [
-			"raylib",
-			"dl",
-			"pthread"
+
+	"debug": {
+		"compiler_args": "-g3 -std=c++2a -Wshadow",
+		"linker_args": "",
+		"libraries_dirs": [
+			"ext/raaylib/lib"
 		],
-		"Release": [
+		"libraries_names": [
 			"raylib",
 			"dl",
 			"pthread"
 		]
+
 	},
-	"Arguments": {
-		"Debug": {
-			"Compiler": "-g3 -std=c++2a -Wshadow",
-			"Linker": ""
-		},
-		"Release": {
-			"Compiler": "-O2 -std=c++2a",
-			"Linker": "-s"
-		}
-	}
+
+	"release": {
+		"compiler_args": "-O2 -std=c++2a",
+		"linker_args": "-s",
+		"libraries_dirs": [
+		],
+		"libraries_names": [
+		]
+	},
+
+	"exe_name": "game.exe"
 }
