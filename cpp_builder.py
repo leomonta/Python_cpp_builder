@@ -22,6 +22,7 @@
 # Done: retrive include dirs, libs and args from a file
 # Done: retrive target directories for exe, objects, include and source files
 # Done: support for debug and optimization compilation, compiler flag and libraries
+# Done: support for pre and post script
 
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
@@ -197,6 +198,9 @@ def parse_config_json(optimization: str) -> None:
 	# load and parse the file
 	config_file = json.load(open("cpp_builder_config.json"))
 
+
+	# --- Scripts settings ---
+	settings["scripts"] = config_file["scripts"]
 
 
 	# --- Compiler settings ---
@@ -576,6 +580,7 @@ def main():
 		create_makefile()
 		return
  
+
 	# Release or debug mode
 	optimization_mode: str = "debug"
 	if "-o" in sys.argv:
@@ -583,12 +588,15 @@ def main():
 	
 	parse_config_json(optimization_mode)
 
-	# Execute pre-script 
-	print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET);
-	print(exe_command(settings["scripts"]["pre"]))
 
 	# go to the project dir
 	os.chdir(settings["project_path"])
+
+
+	# Execute pre-script 
+	if "pre" in settings["scripts"]:
+		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET);
+		print(exe_command(f'./{settings["scripts"]["pre"]}')[1])
 
 
 	# create file if it does not exist
@@ -601,7 +609,6 @@ def main():
 	if "-a" not in sys.argv:
 		# load old hashes
 		load_old_hashes()
-
 
 	# obtain new hashes
 	calculate_new_hashes()
@@ -638,8 +645,11 @@ def main():
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(1)
 
-	print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
-	print(exe_command(setting["scripts"]["post"]))
+
+	if "post" in settings["scripts"]:
+		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
+		print(exe_command(f'{settings["scripts"]["post"]}')[1])
+
 
 	save_new_hashes()
 
