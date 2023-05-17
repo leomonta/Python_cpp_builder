@@ -1,6 +1,6 @@
-# Building tool for cpp and hpp files 
+# Building tool for cpp and hpp files
 # @Author Leonardo Montagner https://github.com/Vectoryx
-# 
+#
 # Build only the modified files on a cpp project
 # Link and compile usign the appropriate library and include path
 # Print out error and warning messages
@@ -15,7 +15,38 @@
 # TODO retrive include dirs, libs and args from a file
 # TODO retrive target directories for exe, objects, include and source files
 
+import subprocess  # execute command on the cmd / bash / whatever
+import os  # get directories file names
 
+
+def exe_command(command):
+	"""
+	execute the given command and return the output -> [stdout, stderr]
+	"""
+
+	stream = subprocess.Popen(
+		command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
+	out = stream.communicate()  # execute the command and get the result
+
+	return out
+
+
+args = "-Wshadow"
+libs = "-lraylib"
+includes = "-Itest/include"
+srcDirs = ["src"]
+to_compile = []
+baseDir = "test"
+for sdir in srcDirs:
+	for file in os.listdir(baseDir + "/" + sdir):
+		to_compile.append(baseDir + "/" +sdir + "/" + file)
+
+for file in to_compile:
+	print(file)
+	command = f"g++ {args} {includes} -c -o {file}.o {file}"
+	print(command)
+	res = exe_command(command)
+	print(res[0], res[1])
 
 """
 import subprocess
