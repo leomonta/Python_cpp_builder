@@ -33,84 +33,84 @@ import sys  # for arguments parsing
 
 
 includes_variable: dict[str, list[str]] = {
-	# names of all includes dir + name
-	"all_includes": [],
+    # names of all includes dir + name
+    "all_includes": [],
 
-	# file: list of references (indices) to include files
-	"src_references": {}
+    # file: list of references (indices) to include files
+    "src_references": {}
 }
 
 settings: dict[str, any] = {
-	# name of the compiler and linker executable
-	"compiler": "",
-	"linker": "",
+    # name of the compiler and linker executable
+    "compiler": "",
+    "linker": "",
 
-	# compiler and linker args
-	"cargs": "",
-	"largs" : "",
+    # compiler and linker args
+    "cargs": "",
+    "largs": "",
 
-	# output args
-	# output swithces (/Fo -o) for msvc, clang, and gcc
-	"oargs": {},
+    # misc args
+    # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
+    "args": {},
 
+    # path and name of the final executable
+    "exe_path_name": "",
 
-	# path and name of the final executable
-	"exe_path_name": "",
+    # base directory of the project
+    "project_path": "",
 
-	# base directory of the project
-	"project_path": "",
+    # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+    "includes": "",
 
-	# the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
-	"includes": "",
+    # directory where to leave the compiled object files
+    "objects_path": "",
 
-	# directory where to leave the compiled object files
-	"objects_path": "",
+    # directories containing the names of the source directories
+    "source_files": [],
 
-	# directories containing the names of the source directories
-	"source_files": [],
+    # the string composed by the names of the libraries -> "-lpthread -lm ..."
+    "libraries_names": "",
 
-
-	# the string composed by the names of the libraries -> "-lpthread -lm ..."
-	"libraries_names": "",
-
-	# the string composed by the path of the libraries -> "-L./path/to/lib -L..."
-	"libraries_paths": "",
+    # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+    "libraries_paths": "",
 }
 
 sha1 = hashlib.sha1()
 old_hashes: dict[str, str] = {}
 new_hashes: dict[str, str] = {}
 
-source_files_extensions: list[str] = [
-	"c",
-	"cpp", 
-	"cxx",
-	"c++",
-	"cc",
-	"C",
-	"s"
+source_files_extensions: list[str] = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
+
+compilers_common_args: list[dict[str]] = [
+    {
+        "compile_only": "-c",
+        "output_compiler": "-o ",
+        "output_linker": "-o ",
+        "object_extension": "o",
+        "include_path": "-I",
+        "library_path": "-L",
+        "library_name": "-l",
+    }, {
+        "compile_only": "/c",
+        "output_compiler": "/Fo",
+        "output_linker": "/OUT:",
+        "object_extension": "obj",
+        "include_path": "/I",
+        "library_path": "/LIBPATH",
+        "library_name": "",
+    }, {
+        "compile_only": "--crate-name",
+        "output_compiler": "-o ",
+        "output_linker": "-o ",
+        "object_extension": "o",
+        "include_path": "",
+        "library_path": "-L",
+        "library_name": "-l",
+    }
 ]
 
-compilers_common_args: list[dict[str, str]] = [
-	{
-		"compile_only": "-c",
-		"output_compiler": "-o",
-		"output_linker": "-o",
-		"object_extension": "o"
-	},
-	{
-		"compile_only": "/c",
-		"output_compiler": "/Fo",
-		"output_linker": "/OUT:",
-		"object_extension": "obj"
-	},
-	{
-		"compile_only": "--crate-name",
-		"output_compiler": "--emit",
-		"output_linker": "o",
-		"object_extension": "o"
-	},
-]
+# should be a reference to compilers_common_args
+compiler_specific_args: dict[str] = {}
 
 
 class COLS:
@@ -181,7 +181,9 @@ def exe_command(command: str) -> tuple[str, str]:
 	execute the given command and return the output -> [stdout, stderr]
 	"""
 
-	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
+	stream = subprocess.Popen(
+	    command.split(" "), stderr=subprocess.PIPE, universal_newlines=True
+	)
 
 	return stream.communicate()  # execute the command and get the result
 
@@ -197,17 +199,19 @@ def parse_config_json(optimization: str) -> int:
 	global settings
 
 	# load and parse the file
-	config_filename="cpp_builder_config.json"
+	config_filename = "cpp_builder_config.json"
 	if os.path.isfile(config_filename):
 		config_file = json.load(open(config_filename))
 	else:
-		print(COLS.FG_RED, f"[ERROR]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET);
+		print(
+		    COLS.FG_RED,
+		    f"[ERROR]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found",
+		    COLS.RESET
+		)
 		return 0
-
 
 	# --- Scripts settings ---
 	settings["scripts"] = config_file["scripts"]
-
 
 	# --- Compiler settings ---
 	# get the compiler executable (gcc, g++, clang, rustc, etc)
@@ -216,7 +220,7 @@ def parse_config_json(optimization: str) -> int:
 	settings["compiler"] = config_file["compiler"]["compiler_exe"]
 
 	cstyle: str = config_file["compiler"]["compiler_style"]
-	
+
 	# 0 gcc / clang
 	# 1 msvc
 	# 2 rust
@@ -231,11 +235,9 @@ def parse_config_json(optimization: str) -> int:
 	elif cstyle == "rustc":
 		compiler_type = 2
 
-	settings["oargs"] = compilers_common_args[compiler_type]
+	settings["args"] = compilers_common_args[compiler_type]
 
 	settings["linker"] = config_file["compiler"]["linker_exe"]
-
-
 
 	# --- Directories settings ---
 	# Where is the project
@@ -244,10 +246,8 @@ def parse_config_json(optimization: str) -> int:
 	# base directory for ALL the other directories and files
 	settings["project_path"] = config_file["directories"]["project_dir"]
 
-
 	# name of the final executable
 	settings["exe_path_name"] = config_file["directories"]["exe_path_name"]
-
 
 	targets: list[str] = []
 
@@ -263,14 +263,11 @@ def parse_config_json(optimization: str) -> int:
 
 	settings["source_files"] = targets
 
-
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in config_file["directories"]["include_dirs"]:
-		settings["includes"] += " -I" + Idir
+		settings["includes"] += " " + settings["args"]["include_path"] + Idir
 
 	settings["objects_path"] = config_file["directories"]["temp_dir"]
-
-
 
 	# Optimization dependent stuff
 	opt: str = optimization
@@ -282,8 +279,7 @@ def parse_config_json(optimization: str) -> int:
 
 	# create the library args -> -lSomelib -lSomelib2 -l...
 	for lname in config_file[opt]["libraries_names"]:
-		settings["libraries_names"] += " -l" + lname
-
+		settings["libraries_names"] += " " + settings["args"]["library_name"] + lname
 
 	# if the current optimization section has no libs, default to debug
 	if not config_file[optimization]["libraries_dirs"]:
@@ -293,26 +289,21 @@ def parse_config_json(optimization: str) -> int:
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
 	for Lname in config_file[opt]["libraries_dirs"]:
-		settings["libraries_paths"] += " -L" + Lname
-
-
+		settings["libraries_paths"] += " " + settings["args"]["library_name"] + Lname
 
 	# --- Compiler an Linker arguments ---
 
-	
 	if not config_file[optimization]["compiler_args"]:
 		opt = "debug"
 	else:
-		opt = optimization	
+		opt = optimization
 	settings["cargs"] = config_file[opt]["compiler_args"]
-
 
 	if not config_file[optimization]["linker_args"]:
 		opt = "debug"
 	else:
-		opt = optimization	
+		opt = optimization
 	settings["largs"] = config_file[opt]["linker_args"]
-
 
 	# fix for empty args
 	if settings["cargs"]:
@@ -322,7 +313,7 @@ def parse_config_json(optimization: str) -> int:
 		settings["largs"] = " " + settings["largs"]
 
 	return 1
-	
+
 
 def is_modified(filename: str) -> bool:
 	"""
@@ -345,7 +336,8 @@ def calculate_new_hashes() -> None:
 
 	global settings, sha1
 
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in settings["source_files"
+	                    ]:  # loop trough every file of each directory
 
 		# sha1 hash calculation
 
@@ -389,7 +381,8 @@ def get_to_compile() -> list[str]:
 	to_compile = []  # contains directory and filename
 
 	# checking which file need to be compiled
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in settings["source_files"
+	                    ]:  # loop trough every file of each directory
 		# i need to differentiate different parts
 		# extension: to decide if it has to be compiled or not and to name it
 		# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
@@ -437,12 +430,12 @@ def compile(to_compile: list[str]) -> bool:
 	includes = settings["includes"]
 	cargs = settings["cargs"]
 	obj_dir = settings["objects_path"]
-	oargs = settings["oargs"]
+	oargs = settings["args"]
 
 	for file in to_compile:
 		obj_name: str = "".join(file[0].split("/"))
 
-		command = f'{cexe}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]} {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
+		command = f'{cexe}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
@@ -458,7 +451,8 @@ def link(to_compile: list[str]) -> bool:
 
 	to_link: list[str] = []
 
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in settings["source_files"
+	                    ]:  # loop trough every file of each directory
 
 		# get file extension
 		temp = file.split(".")
@@ -477,9 +471,9 @@ def link(to_compile: list[str]) -> bool:
 	epn = settings["exe_path_name"]
 	Libs = settings["libraries_paths"]
 	obj_dir = settings["objects_path"]
-	oargs = settings["oargs"]
+	oargs = settings["args"]
 
-	Link_cmd = f'{lexe}{largs} {oargs["output_linker"]} {epn}{Libs}'
+	Link_cmd = f'{lexe}{largs} {oargs["output_linker"]}{epn}{Libs}'
 
 	for file in to_link:
 		obj_name: str = "".join(file[0].split("/"))
@@ -582,37 +576,31 @@ def main():
 
 	global settings
 
-
 	# makefile option
 	if "-e" in sys.argv:
 		create_makefile()
 		return
- 
 
 	# Release or debug mode
 	optimization_mode: str = "debug"
 	if "-o" in sys.argv:
 		optimization_mode = "release"
-	
+
 	if not parse_config_json(optimization_mode):
 		sys.exit(1)
-
 
 	# go to the project dir
 	os.chdir(settings["project_path"])
 
-
-	# Execute pre-script 
+	# Execute pre-script
 	if "pre" in settings["scripts"]:
-		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET);
+		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
 		print(exe_command(f'./{settings["scripts"]["pre"]}')[1])
-
 
 	# create file if it does not exist
 	if not os.path.exists("files_hash.txt"):
 		f = open("files_hash.txt", "w")
 		f.close()
-
 
 	# by not loading old hashes they all look new
 	if "-a" not in sys.argv:
@@ -622,10 +610,8 @@ def main():
 	# obtain new hashes
 	calculate_new_hashes()
 
-
 	# get the file needed to compile
 	to_compile = get_to_compile()
-
 
 	# --- Compiling ---
 
@@ -633,7 +619,9 @@ def main():
 
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
-		print("  --- Compilation and linking skipped due to no new or modified files ---")
+		print(
+		    "  --- Compilation and linking skipped due to no new or modified files ---"
+		)
 		return
 
 	if not os.path.exists(settings["objects_path"]):
@@ -642,9 +630,10 @@ def main():
 	# compile each file and show the output,
 	# and check for errors
 	if compile(to_compile):
-		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
+		print(
+		    f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---"
+		)
 		sys.exit(2)
-
 
 	# --- Linking ---
 
@@ -654,11 +643,9 @@ def main():
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(3)
 
-
 	if "post" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
 		print(exe_command(f'./{settings["scripts"]["post"]}')[1])
-
 
 	save_new_hashes()
 
