@@ -289,7 +289,7 @@ def parse_config_json(optimization: str) -> int:
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
 	for Lname in config_file[opt]["libraries_dirs"]:
-		settings["libraries_paths"] += " " + settings["args"]["library_name"] + Lname
+		settings["libraries_paths"] += " " + settings["args"]["library_path"] + Lname
 
 	# --- Compiler an Linker arguments ---
 
