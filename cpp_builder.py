@@ -96,7 +96,7 @@ compilers_common_args: list[dict[str]] = [
         "output_linker": "/OUT:",
         "object_extension": "obj",
         "include_path": "/I",
-        "library_path": "/LIBPATH",
+        "library_path": "/LIBPATH:",
         "library_name": "",
     }, {
         "compile_only": "--crate-name",
