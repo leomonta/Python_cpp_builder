@@ -17,6 +17,9 @@
 # Done: added specific linker exec
 # TODO: use compiler exec if no linker exec is present
 # TODO: multithreaded compiling
+## - main.cpp  Compiling
+## utils.cpp Compiling
+## / other.cpp Compiling
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
@@ -29,6 +32,7 @@ import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
 import json  # parse cpp_builder_config.json
 import hashlib  # for calculating hashes
+import threading # for threading, duh
 import sys  # for arguments parsing
 
 
@@ -432,7 +436,8 @@ def compile(to_compile: list[str]) -> bool:
 
 		command = f'{cexe}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 		print(command)
-		errors += not print_stdout(exe_command(command))
+		res = threading.Thread(target= exe_command, args=(command))
+		errors += not print_stdout(res)
 
 	return errors > 0
 
