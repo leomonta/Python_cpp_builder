@@ -298,11 +298,6 @@ def parse_config_json(optimization: str) -> int:
 	else:
 		opt = optimization
 	settings["cargs"] = config_file[opt]["compiler_args"]
-
-	if not config_file[optimization]["linker_args"]:
-		opt = "debug"
-	else:
-		opt = optimization
 	settings["largs"] = config_file[opt]["linker_args"]
 
 	# fix for empty args
