@@ -18,7 +18,7 @@
 # TODO: use compiler exec if no linker exec is present
 # TODO: multithreaded compiling
 ## - main.cpp  Compiling
-## utils.cpp Compiling
+##   utils.cpp Done
 ## / other.cpp Compiling
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
@@ -380,8 +380,8 @@ def get_to_compile() -> list[str]:
 	to_compile = []  # contains directory and filename
 
 	# checking which file need to be compiled
-	for file in settings["source_files"
-	                    ]:  # loop trough every file of each directory
+	file: str = ""
+	for file in settings["source_files"]: # loop trough every file of each directory
 		# i need to differentiate different parts
 		# extension: to decide if it has to be compiled or not and to name it
 		# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
@@ -390,11 +390,12 @@ def get_to_compile() -> list[str]:
 		if is_modified(file):
 
 			# get file extension
-			temp = file.split(".")
-			ext = temp.pop(-1)
+			ext_pos = file.rfind(".")
+			temp = file[:ext_pos]
+			ext = file[ext_pos + 1:]
 
 			# get filename and relative source dir
-			path: list[str] = temp[0].split("/")
+			path: list[str] = temp.split("/")
 			file_name: str = path[-1]
 			source_directory: str = "/".join(path[:-1])
 
@@ -436,8 +437,7 @@ def compile(to_compile: list[str]) -> bool:
 
 		command = f'{cexe}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 		print(command)
-		res = threading.Thread(target= exe_command, args=(command))
-		errors += not print_stdout(res)
+		errors += not print_stdout(exe_command(command))
 
 	return errors > 0
 
@@ -451,15 +451,15 @@ def link(to_compile: list[str]) -> bool:
 
 	to_link: list[str] = []
 
-	for file in settings["source_files"
-	                    ]:  # loop trough every file of each directory
+	for file in settings["source_files"]:  # loop trough every file of each directory
 
 		# get file extension
-		temp = file.split(".")
-		ext = temp.pop(-1)
+		ext_pos = file.rfind(".")
+		temp = file[:ext_pos]
+		ext = file[ext_pos + 1:]
 
 		# get filename and relative source dir
-		path: list[str] = temp[0].split("/")
+		path: list[str] = temp.split("/")
 		file_name: str = path[-1]
 		source_directory: str = "/".join(path[:-1])
 
