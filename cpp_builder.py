@@ -116,23 +116,6 @@ compilers_common_args: list[dict[str]] = [
 # should be a reference to compilers_common_args
 compiler_specific_args: dict[str] = {}
 
-def parse_file_path(filename: str) -> tuple[str, str, str] | None:
-	# get file extension
-	ext_pos               = filename.rfind(".")
-	filename_wo_extension = filename[:ext_pos]
-	file_extension        = filename[ext_pos + 1:]
-
-	if (ext in source_files_extensions):  # check if it is a source file
-
-		# get filename and relative source dir
-		path: list[str] = filename_wo_extension.split("/")
-		file_name: str = path[-1]
-		full_directory: str = "/".join(path[:-1])
-
-		return (full_directory, file_name, ext)
-
-	return None
-
 
 class COLS:
 
@@ -174,6 +157,43 @@ class COLS:
 
 	RESET = "\033[0m"
 
+def parse_file_path(filename: str) -> tuple[str, str, str] | None:
+	# get file extension
+	ext_pos               = filename.rfind(".")
+	filename_wo_extension = filename[:ext_pos]
+	file_extension        = filename[ext_pos + 1:]
+
+	if (file_extension in source_files_extensions):  # check if it is a source file
+
+		# get filename and relative source dir
+		path: list[str] = filename_wo_extension.split("/")
+		file_name: str = path[-1]
+		full_directory: str = "/".join(path[:-1])
+
+		return (full_directory, file_name, file_extension)
+
+	return None
+
+
+def get_includes(file: str) -> list[str]:
+
+	founds: list[str] = []
+	with open(file, "r") as fp:
+		line: str
+		l_no: int
+		for l_no, line in enumerate(fp):
+			
+			if "#include" in line:
+				
+				# first " delimiter
+				first_deli = line.find("\"") + 1
+				# second " delimiter
+				second_deli = line[first_deli:].find("\"")
+
+				incl = line[first_deli:second_deli + first_deli]
+				founds.append(incl)
+
+	return founds
 
 def print_stdout(mexage: tuple) -> bool:
 
@@ -331,18 +351,61 @@ def parse_config_json(optimization: str) -> int:
 	return 1
 
 
-def is_modified(filename: str) -> bool:
+def to_recompile(filename: str) -> bool:
 	"""
-	Given a filename return if it has been modified
+	Given a filename return if it needs to be recompiles
+	A source file needs to be recompiled if it has been modified
+	Or an include chain (God help me this shit is recursive) has been modified
 	"""
 
 	global new_hashes
 	global old_hashes
 
 	if filename in old_hashes.keys():
-		if old_hashes[filename] == new_hashes[filename]:
-			return False
-	return True
+		if old_hashes[filename] != new_hashes[filename]:
+			# For the same file the new and the old hashes are different, this means that they are different files
+			return True
+	
+	# now check if an include has been modified
+
+	# The latter part isn't ready yet
+	return 
+	
+	# collect all of the includes here
+	# examine the file at first, check all of the 
+	includes: list[str] = [filename]
+
+	while len(includes) > 0:
+
+		# I need to find the actual path of the file
+		curr = includes[0]
+
+		if curr in old.hashes():
+			if old_hashes[curr] != new_hashes[curr]:
+				return True
+		else:
+			make_new_file_hash(curr)
+
+		incl = get_includes(curr)
+		if incl != None:
+			includes.append(incl)
+		includes.pop(0)
+	
+
+def make_new_file_hash(file: str) -> str:
+	"""
+	Calculate the hash for the given file an puts it in the new_hashes file
+	"""
+	# sha1 hash calculation
+
+	with open(f"{file}", "r+b") as f:
+		sha1.update(f.read())
+
+	# insert in the new_hashes dict the key filename with the value hash
+	new_hashes[file] = sha1.hexdigest()  # create the new hash
+
+	# i need to re-instantiate the object to empty it
+	sha1 = hashlib.sha1()
 
 
 def calculate_new_hashes() -> None:
@@ -352,19 +415,9 @@ def calculate_new_hashes() -> None:
 
 	global settings, sha1
 
-	for file in settings["source_files"
-	                    ]:  # loop trough every file of each directory
+	for file in settings["source_files"]:  # loop trough every file of each directory
 
-		# sha1 hash calculation
-
-		with open(f"{file}", "r+b") as f:
-			sha1.update(f.read())
-
-		# insert in the new_hashes dict the key filename with the value hash
-		new_hashes[file] = sha1.hexdigest()  # create the new hash
-
-		# i need to re-instantiate the object to empty it
-		sha1 = hashlib.sha1()
+		make_new_file_hash(file)
 
 
 def load_old_hashes() -> None:
@@ -404,7 +457,7 @@ def get_to_compile() -> list[str]:
 		# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
 		# source dir: necessary for differentiate eventual same-named files on different dirs
 
-		if is_modified(file):
+		if to_recompile(file):
 
 			to_compile.append(parse_file_path(file))
 
