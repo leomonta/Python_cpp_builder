@@ -116,6 +116,23 @@ compilers_common_args: list[dict[str]] = [
 # should be a reference to compilers_common_args
 compiler_specific_args: dict[str] = {}
 
+def parse_file_path(filename: str) -> tuple[str, str, str] | None:
+	# get file extension
+	ext_pos               = filename.rfind(".")
+	filename_wo_extension = filename[:ext_pos]
+	file_extension        = filename[ext_pos + 1:]
+
+	if (ext in source_files_extensions):  # check if it is a source file
+
+		# get filename and relative source dir
+		path: list[str] = filename_wo_extension.split("/")
+		file_name: str = path[-1]
+		full_directory: str = "/".join(path[:-1])
+
+		return (full_directory, file_name, ext)
+
+	return None
+
 
 class COLS:
 
@@ -377,7 +394,7 @@ def get_to_compile() -> list[str]:
 
 	global settings
 
-	to_compile = []  # contains directory and filename
+	to_compile: list[tuple[str, str, str]] = []  # contains directory and filename
 
 	# checking which file need to be compiled
 	file: str = ""
@@ -389,18 +406,8 @@ def get_to_compile() -> list[str]:
 
 		if is_modified(file):
 
-			# get file extension
-			ext_pos = file.rfind(".")
-			temp = file[:ext_pos]
-			ext = file[ext_pos + 1:]
+			to_compile.append(parse_file_path(file))
 
-			# get filename and relative source dir
-			path: list[str] = temp.split("/")
-			file_name: str = path[-1]
-			source_directory: str = "/".join(path[:-1])
-
-			if (ext in source_files_extensions):  # check if it is a source file
-				to_compile.append([source_directory, file_name, ext])
 	return to_compile
 
 
@@ -453,18 +460,7 @@ def link(to_compile: list[str]) -> bool:
 
 	for file in settings["source_files"]:  # loop trough every file of each directory
 
-		# get file extension
-		ext_pos = file.rfind(".")
-		temp = file[:ext_pos]
-		ext = file[ext_pos + 1:]
-
-		# get filename and relative source dir
-		path: list[str] = temp.split("/")
-		file_name: str = path[-1]
-		source_directory: str = "/".join(path[:-1])
-
-		if (ext in source_files_extensions):  # check if it is a source file
-			to_link.append([source_directory, file_name, ext])
+		to_link.append(parse_file_path(file))
 
 	lexe = settings["linker"]
 	largs = settings["largs"]
