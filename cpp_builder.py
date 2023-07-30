@@ -79,6 +79,15 @@ settings: dict[str, any] = {
     "libraries_paths": "",
 }
 
+# for now use these, might add more in the future
+compiler_includes: list[str] = [
+	"./"
+	"/usr/lib/gcc/x86_64-pc-linux-gnu/13.1.1/include",
+	"/usr/local/include",
+	"/usr/lib/gcc/x86_64-pc-linux-gnu/13.1.1/include-fixed",
+	"/usr/include"
+]
+
 sha1 = hashlib.sha1()
 old_hashes: dict[str, str] = {}
 new_hashes: dict[str, str] = {}
@@ -190,10 +199,13 @@ def get_includes(file: str) -> list[str]:
 				# second " delimiter
 				second_deli = line[first_deli:].find("\"")
 
-				incl = line[first_deli:second_deli + first_deli]
-				founds.append(incl)
+				print(line, first_deli, second_deli)
+				if first_deli > 0:
+					incl = line[first_deli:second_deli + first_deli]
+					founds.append(incl)
 
 	return founds
+
 
 def print_stdout(mexage: tuple) -> bool:
 
@@ -306,6 +318,7 @@ def parse_config_json(optimization: str) -> int:
 
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in config_file["directories"]["include_dirs"]:
+		compiler_includes.insert(1, Idir)
 		settings["includes"] += " " + settings["args"]["include_path"] + Idir
 
 	settings["objects_path"] = config_file["directories"]["temp_dir"]
@@ -369,7 +382,7 @@ def to_recompile(filename: str) -> bool:
 	# now check if an include has been modified
 
 	# The latter part isn't ready yet
-	return 
+	# return 
 	
 	# collect all of the includes here
 	# examine the file at first, check all of the 
@@ -378,9 +391,23 @@ def to_recompile(filename: str) -> bool:
 	while len(includes) > 0:
 
 		# I need to find the actual path of the file
+		# try /usr/include (or the compiler default includes)
+		# try the INCLUDE_PATH environment variable (should be available also in windows)
+		# try also the includes dirs given in the config file
 		curr = includes[0]
 
-		if curr in old.hashes():
+		for dir in compiler_includes:
+			fullname: str = dir + "/" + curr
+			# print(dir, "-", fullname)
+			if os.path.isfile(fullname):
+				print(COLS.FG_GREEN, "Found", fullname, "\n", COLS.RESET)
+				# everythin fine
+				curr = fullname
+				break
+		
+		
+
+		if curr in old_hashes:
 			if old_hashes[curr] != new_hashes[curr]:
 				return True
 		else:
@@ -388,7 +415,7 @@ def to_recompile(filename: str) -> bool:
 
 		incl = get_includes(curr)
 		if incl != None:
-			includes.append(incl)
+			includes.extend(incl)
 		includes.pop(0)
 	
 
@@ -396,9 +423,12 @@ def make_new_file_hash(file: str) -> str:
 	"""
 	Calculate the hash for the given file an puts it in the new_hashes file
 	"""
+	
+	global sha1
+
 	# sha1 hash calculation
 
-	with open(f"{file}", "r+b") as f:
+	with open(f"{file}", "rb") as f:
 		sha1.update(f.read())
 
 	# insert in the new_hashes dict the key filename with the value hash
@@ -413,7 +443,7 @@ def calculate_new_hashes() -> None:
 	Calculate the hashes for all the source files
 	"""
 
-	global settings, sha1
+	global settings
 
 	for file in settings["source_files"]:  # loop trough every file of each directory
 
