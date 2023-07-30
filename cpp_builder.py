@@ -379,13 +379,11 @@ def to_recompile(filename: str) -> bool:
 	global old_hashes
 
 	if filename not in old_hashes.keys():
-		print(COLS.FG_YELLOW,f"{curr} file is new compiling related TU", COLS.RESET)
 		return True
 
 	# this means that filename is in old_hashses
 	if old_hashes[filename] != new_hashes[filename]:
 		# For the same file the new and the old hashes are different, this means that the file has been modified
-		print(COLS.FG_YELLOW,f"{curr} file has been modified compiling related TU", COLS.RESET)
 		return True
 	
 	# now check if an include has been modified
@@ -413,11 +411,9 @@ def to_recompile(filename: str) -> bool:
 
 		if curr in old_hashes:
 			if old_hashes[curr] != new_hashes[curr]:
-				print(COLS.FG_YELLOW,f"{curr} file has been modified compiling related TU", COLS.RESET)
 				return True
 		else:
 			make_new_file_hash(curr)
-			print(COLS.FG_YELLOW,f"{curr} file is new compiling related TU", COLS.RESET)
 			return True
 
 		incl = get_includes(curr)
@@ -492,6 +488,7 @@ def get_to_compile() -> list[str]:
 	for file in settings["source_files"]: # loop trough every file of each directory
 
 		if to_recompile(file):
+			print(COLS.FG_YELLOW, f"{file} needs to be compiled due to it or one of its headers being new or modified", COLS.RESET)
 
 			to_compile.append(parse_file_path(file))
 
