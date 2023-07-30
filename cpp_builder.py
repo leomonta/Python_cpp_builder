@@ -167,6 +167,11 @@ class COLS:
 	RESET = "\033[0m"
 
 def parse_file_path(filename: str) -> tuple[str, str, str] | None:
+	# i need to differentiate different parts
+	# extension: to decide if it has to be compiled or not and to name it
+	# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
+	# source dir: necessary for differentiate eventual same-named files on different dirs
+
 	# get file extension
 	ext_pos               = filename.rfind(".")
 	filename_wo_extension = filename[:ext_pos]
@@ -199,7 +204,6 @@ def get_includes(file: str) -> list[str]:
 				# second " delimiter
 				second_deli = line[first_deli:].find("\"")
 
-				print(line, first_deli, second_deli)
 				if first_deli > 0:
 					incl = line[first_deli:second_deli + first_deli]
 					founds.append(incl)
@@ -366,7 +370,7 @@ def parse_config_json(optimization: str) -> int:
 
 def to_recompile(filename: str) -> bool:
 	"""
-	Given a filename return if it needs to be recompiles
+	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
 	Or an include chain (God help me this shit is recursive) has been modified
 	"""
@@ -374,18 +378,19 @@ def to_recompile(filename: str) -> bool:
 	global new_hashes
 	global old_hashes
 
-	if filename in old_hashes.keys():
-		if old_hashes[filename] != new_hashes[filename]:
-			# For the same file the new and the old hashes are different, this means that they are different files
-			return True
+	if filename not in old_hashes.keys():
+		print(COLS.FG_YELLOW,f"{curr} file is new compiling related TU", COLS.RESET)
+		return True
+
+	# this means that filename is in old_hashses
+	if old_hashes[filename] != new_hashes[filename]:
+		# For the same file the new and the old hashes are different, this means that the file has been modified
+		print(COLS.FG_YELLOW,f"{curr} file has been modified compiling related TU", COLS.RESET)
+		return True
 	
 	# now check if an include has been modified
 
-	# The latter part isn't ready yet
-	# return 
-	
 	# collect all of the includes here
-	# examine the file at first, check all of the 
 	includes: list[str] = [filename]
 
 	while len(includes) > 0:
@@ -400,7 +405,6 @@ def to_recompile(filename: str) -> bool:
 			fullname: str = dir + "/" + curr
 			# print(dir, "-", fullname)
 			if os.path.isfile(fullname):
-				print(COLS.FG_GREEN, "Found", fullname, "\n", COLS.RESET)
 				# everythin fine
 				curr = fullname
 				break
@@ -409,15 +413,19 @@ def to_recompile(filename: str) -> bool:
 
 		if curr in old_hashes:
 			if old_hashes[curr] != new_hashes[curr]:
+				print(COLS.FG_YELLOW,f"{curr} file has been modified compiling related TU", COLS.RESET)
 				return True
 		else:
 			make_new_file_hash(curr)
+			print(COLS.FG_YELLOW,f"{curr} file is new compiling related TU", COLS.RESET)
+			return True
 
 		incl = get_includes(curr)
 		if incl != None:
 			includes.extend(incl)
 		includes.pop(0)
-	
+	return False
+
 
 def make_new_file_hash(file: str) -> str:
 	"""
@@ -445,7 +453,7 @@ def calculate_new_hashes() -> None:
 
 	global settings
 
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in old_hashes:  # loop trough every file of each directory
 
 		make_new_file_hash(file)
 
@@ -482,10 +490,6 @@ def get_to_compile() -> list[str]:
 	# checking which file need to be compiled
 	file: str = ""
 	for file in settings["source_files"]: # loop trough every file of each directory
-		# i need to differentiate different parts
-		# extension: to decide if it has to be compiled or not and to name it
-		# filename: everything else of the file name ignoring the extension, useful for naming compilitation files
-		# source dir: necessary for differentiate eventual same-named files on different dirs
 
 		if to_recompile(file):
 
