@@ -81,7 +81,7 @@ settings: dict[str, any] = {
 
 # for now use these, might add more in the future
 compiler_includes: list[str] = [
-	"./"
+	"./",
 	"/usr/lib/gcc/x86_64-pc-linux-gnu/13.1.1/include",
 	"/usr/local/include",
 	"/usr/lib/gcc/x86_64-pc-linux-gnu/13.1.1/include-fixed",
@@ -177,21 +177,19 @@ def parse_file_path(filename: str) -> tuple[str, str, str] | None:
 	filename_wo_extension = filename[:ext_pos]
 	file_extension        = filename[ext_pos + 1:]
 
-	if (file_extension in source_files_extensions):  # check if it is a source file
 
-		# get filename and relative source dir
-		path: list[str] = filename_wo_extension.split("/")
-		file_name: str = path[-1]
-		full_directory: str = "/".join(path[:-1])
+	# get filename and relative source dir
+	path: list[str] = filename_wo_extension.split("/")
+	file_name: str = path[-1]
+	full_directory: str = "/".join(path[:-1])
 
-		return (full_directory, file_name, file_extension)
-
-	return None
+	return (full_directory, file_name, file_extension)
 
 
 def get_includes(file: str) -> list[str]:
 
 	founds: list[str] = []
+	# org_path: str = parse_file_path(file)[0]
 	with open(file, "r") as fp:
 		line: str
 		l_no: int
@@ -368,7 +366,7 @@ def parse_config_json(optimization: str) -> int:
 	return 1
 
 
-def to_recompile(filename: str) -> bool:
+def to_recompile(filename: str, env = "") -> bool:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
@@ -378,6 +376,7 @@ def to_recompile(filename: str) -> bool:
 	global new_hashes
 	global old_hashes
 
+	"""
 	if filename not in old_hashes.keys():
 		return True
 
@@ -385,41 +384,58 @@ def to_recompile(filename: str) -> bool:
 	if old_hashes[filename] != new_hashes[filename]:
 		# For the same file the new and the old hashes are different, this means that the file has been modified
 		return True
+	"""
 	
 	# now check if an include has been modified
 
 	# collect all of the includes here
-	includes: list[str] = [filename]
+	includes: list[str]
 
-	while len(includes) > 0:
+	# while len(includes) > 0:
 
 		# I need to find the actual path of the file
 		# try /usr/include (or the compiler default includes)
 		# try the INCLUDE_PATH environment variable (should be available also in windows)
 		# try also the includes dirs given in the config file
-		curr = includes[0]
 
-		for dir in compiler_includes:
-			fullname: str = dir + "/" + curr
-			# print(dir, "-", fullname)
-			if os.path.isfile(fullname):
-				# everythin fine
-				curr = fullname
-				break
-		
-		
+	includes_directories = compiler_includes.copy()
+	if isinstance(env, str):
+		includes_directories.append(env)
+	else:
+		includes_directories.extend(env)
 
-		if curr in old_hashes:
-			if old_hashes[curr] != new_hashes[curr]:
-				return True
-		else:
-			make_new_file_hash(curr)
+	curr = filename #includes[0]
+
+	# print(includes_directories)
+
+	for dir in includes_directories:
+		fullname: str = dir + "/" + curr
+		# print(dir, "-", fullname)
+		if os.path.isfile(fullname):
+			# everythin fine
+			curr = fullname
+			# print(COLS.FG_GREEN, "Found", curr, COLS.RESET)
+			break
+	
+	# print(COLS.FG_RED, "Not Found", curr, COLS.RESET, "\n")
+
+	if curr in old_hashes:
+		if old_hashes[curr] != new_hashes[curr]:
 			return True
+	else:
+		make_new_file_hash(curr)
+		return True
 
-		incl = get_includes(curr)
-		if incl != None:
-			includes.extend(incl)
-		includes.pop(0)
+	for inc in get_includes(curr): 
+		add_incl = parse_file_path(curr)[0] + "/"
+		# print("Add incl ->", add_incl)
+		if to_recompile(inc, add_incl): 
+			return True
+	# incl = get_includes(curr)
+	# if incl != None:
+		# includes.extend(incl)
+	# includes.pop(0)
+
 	return False
 
 
@@ -432,7 +448,8 @@ def make_new_file_hash(file: str) -> str:
 
 	# sha1 hash calculation
 
-	with open(f"{file}", "rb") as f:
+	# print("Opening", file)
+	with open(file, "rb") as f:
 		sha1.update(f.read())
 
 	# insert in the new_hashes dict the key filename with the value hash
