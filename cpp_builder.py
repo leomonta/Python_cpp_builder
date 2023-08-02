@@ -103,6 +103,7 @@ compilers_common_args: list[dict[str]] = [
         "include_path": "-I",
         "library_path": "-L",
         "library_name": "-l",
+		"force_colors": "-fdiagnostics-color=always",
     }, {
         "compile_only": "/c",
         "output_compiler": "/Fo",
@@ -111,6 +112,7 @@ compilers_common_args: list[dict[str]] = [
         "include_path": "/I",
         "library_path": "/LIBPATH:",
         "library_name": "",
+		"force_colors": "",
     }, {
         "compile_only": "--crate-name",
         "output_compiler": "-o ",
@@ -119,6 +121,7 @@ compilers_common_args: list[dict[str]] = [
         "include_path": "",
         "library_path": "-L",
         "library_name": "-l",
+		"force_colors": "",
     }
 ]
 
@@ -217,16 +220,16 @@ def print_stdout(mexage: tuple) -> bool:
 
 	for i in range(len(out)):
 		if "error:" in out[i]:
-			print(COLS.FG_RED, out[i])
+			# print(COLS.FG_RED, out[i])
 			res = False
-		elif "warning:" in out[i]:
-			print(COLS.FG_BLUE, out[i])
-		elif "note:" in out[i]:
-			print(COLS.FG_CYAN, out[i])
-		else:
-			print(out[i])
+		# elif "warning:" in out[i]:
+			# print(COLS.FG_BLUE, out[i])
+		# elif "note:" in out[i]:
+			# print(COLS.FG_CYAN, out[i])
+		# else:
+		print(out[i])
 
-	print(COLS.RESET)
+	#print(COLS.RESET)
 
 	return res
 
@@ -543,7 +546,7 @@ def compile(to_compile: list[str]) -> bool:
 	for file in to_compile:
 		obj_name: str = "".join(file[0].split("/"))
 
-		command = f'{cexe}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
+		command = f'{cexe} {oargs["force_colors"]}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 		print(command)
 		errors += not print_stdout(exe_command(command))
 
