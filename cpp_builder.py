@@ -28,54 +28,54 @@
 # Done: support for debug and optimization compilation, compiler flag and libraries
 # Done: support for pre and post script
 
-import subprocess  # execute command on the cmd / bash / whatever
-import os  # get directories file names
-import json  # parse cpp_builder_config.json
-import hashlib  # for calculating hashes
+import subprocess # execute command on the cmd / bash / whatever
+import os         # get directories file names
+import json       # parse cpp_builder_config.json
+import hashlib    # for calculating hashes
 import threading  # for threading, duh
-import sys  # for arguments parsing
+import sys        # for arguments parsing
 
 
 includes_variable: dict[str, list[str]] = {
-    # names of all includes dir + name
+                                            # names of all includes dir + name
     "all_includes": [],
 
-    # file: list of references (indices) to include files
+                                            # file: list of references (indices) to include files
     "src_references": {}
 }
 
 settings: dict[str, any] = {
-    # name of the compiler and linker executable
+                             # name of the compiler and linker executable
     "compiler": "",
     "linker": "",
 
-    # compiler and linker args
+                             # compiler and linker args
     "cargs": "",
     "largs": "",
 
-    # misc args
-    # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
+                             # misc args
+                             # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
     "args": {},
 
-    # path and name of the final executable
+                             # path and name of the final executable
     "exe_path_name": "",
 
-    # base directory of the project
+                             # base directory of the project
     "project_path": "",
 
-    # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+                             # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
     "includes": "",
 
-    # directory where to leave the compiled object files
+                             # directory where to leave the compiled object files
     "objects_path": "",
 
-    # directories containing the names of the source directories
+                             # directories containing the names of the source directories
     "source_files": [],
 
-    # the string composed by the names of the libraries -> "-lpthread -lm ..."
+                             # the string composed by the names of the libraries -> "-lpthread -lm ..."
     "libraries_names": "",
 
-    # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+                             # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
     "libraries_paths": "",
 }
 
@@ -235,7 +235,7 @@ def exe_command(command: str) -> tuple[str, str]:
 
 	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
-	return stream.communicate()  # execute the command and get the result
+	return stream.communicate() # execute the command and get the result
 
 
 def parse_config_json(profile: str) -> int:
@@ -400,7 +400,7 @@ def to_recompile(filename: str, env="") -> bool:
 	else:
 		includes_directories.extend(env)
 
-	curr = filename  #includes[0]
+	curr = filename #includes[0]
 
 	# print(includes_directories)
 
@@ -449,7 +449,7 @@ def make_new_file_hash(file: str) -> str:
 		sha1.update(f.read())
 
 	# insert in the new_hashes dict the key filename with the value hash
-	new_hashes[file] = sha1.hexdigest()  # create the new hash
+	new_hashes[file] = sha1.hexdigest() # create the new hash
 
 	# i need to re-instantiate the object to empty it
 	sha1 = hashlib.sha1()
@@ -462,7 +462,7 @@ def calculate_new_hashes() -> None:
 
 	global settings
 
-	for file in old_hashes:  # loop trough every file of each directory
+	for file in old_hashes: # loop trough every file of each directory
 
 		make_new_file_hash(file)
 
@@ -494,11 +494,11 @@ def get_to_compile() -> list[str]:
 
 	global settings
 
-	to_compile: list[tuple[str, str, str]] = []  # contains directory and filename
+	to_compile: list[tuple[str, str, str]] = [] # contains directory and filename
 
 	# checking which file need to be compiled
 	file: str = ""
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in settings["source_files"]: # loop trough every file of each directory
 
 		if to_recompile(file):
 			print(COLS.FG_YELLOW, f"{file} needs to be compiled due to it or one of its headers being new or modified", COLS.RESET)
@@ -556,7 +556,7 @@ def link(to_compile: list[str]) -> bool:
 
 	to_link: list[str] = []
 
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in settings["source_files"]: # loop trough every file of each directory
 
 		to_link.append(parse_file_path(file))
 
