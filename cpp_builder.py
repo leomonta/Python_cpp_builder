@@ -582,8 +582,9 @@ def link(to_compile: list[str]) -> bool:
 
 def create_makefile():
 
+	# TODO: use all possible profiles in the makefile
 	# first debug options
-	parse_config_json("Debug")
+	parse_config_json("empty")
 	make_file = ""
 
 	# variables

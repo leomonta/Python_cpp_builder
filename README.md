@@ -5,7 +5,7 @@
 ```
 	-a              rebuild the entire project
 	-p profile name	utilize the given profile specifies in the config file
-	-e              do not compile and export the cpp_builder_config as a Makefile with debug and release steps
+	-e              do not compile and export the cpp_builder_config as a Makefile
 ```
 
 ### the cpp_builder_config.json structure
