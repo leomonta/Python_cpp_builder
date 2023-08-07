@@ -32,7 +32,7 @@ import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
 import json  # parse cpp_builder_config.json
 import hashlib  # for calculating hashes
-import threading # for threading, duh
+import threading  # for threading, duh
 import sys  # for arguments parsing
 
 
@@ -80,13 +80,7 @@ settings: dict[str, any] = {
 }
 
 # for now use these, might add more in the future
-compiler_includes: list[str] = [
-	"./",
-	"/usr/lib/gcc/x86_64-pc-linux-gnu/13.1.1/include",
-	"/usr/local/include",
-	"/usr/lib/gcc/x86_64-pc-linux-gnu/13.1.1/include-fixed",
-	"/usr/include"
-]
+compiler_includes: list[str] = ["./"]
 
 sha1 = hashlib.sha1()
 old_hashes: dict[str, str] = {}
@@ -103,7 +97,7 @@ compilers_common_args: list[dict[str]] = [
         "include_path": "-I",
         "library_path": "-L",
         "library_name": "-l",
-		"force_colors": "-fdiagnostics-color=always",
+        "force_colors": "-fdiagnostics-color=always",
     }, {
         "compile_only": "/c",
         "output_compiler": "/Fo",
@@ -112,7 +106,7 @@ compilers_common_args: list[dict[str]] = [
         "include_path": "/I",
         "library_path": "/LIBPATH:",
         "library_name": "",
-		"force_colors": "",
+        "force_colors": "",
     }, {
         "compile_only": "--crate-name",
         "output_compiler": "-o ",
@@ -121,7 +115,7 @@ compilers_common_args: list[dict[str]] = [
         "include_path": "",
         "library_path": "-L",
         "library_name": "-l",
-		"force_colors": "",
+        "force_colors": "",
     }
 ]
 
@@ -169,6 +163,15 @@ class COLS:
 
 	RESET = "\033[0m"
 
+
+def get_profile(args: list[str]) -> str:
+	try:
+		return args[args.index("-p") + 1]
+	except IndexError:
+		# default profile
+		return "empty"
+
+
 def parse_file_path(filename: str) -> tuple[str, str, str] | None:
 	# i need to differentiate different parts
 	# extension: to decide if it has to be compiled or not and to name it
@@ -176,10 +179,9 @@ def parse_file_path(filename: str) -> tuple[str, str, str] | None:
 	# source dir: necessary for differentiate eventual same-named files on different dirs
 
 	# get file extension
-	ext_pos               = filename.rfind(".")
+	ext_pos = filename.rfind(".")
 	filename_wo_extension = filename[:ext_pos]
-	file_extension        = filename[ext_pos + 1:]
-
+	file_extension = filename[ext_pos + 1:]
 
 	# get filename and relative source dir
 	path: list[str] = filename_wo_extension.split("/")
@@ -197,9 +199,9 @@ def get_includes(file: str) -> list[str]:
 		line: str
 		l_no: int
 		for l_no, line in enumerate(fp):
-			
+
 			if "#include" in line:
-				
+
 				# first " delimiter
 				first_deli = line.find("\"") + 1
 				# second " delimiter
@@ -231,19 +233,15 @@ def exe_command(command: str) -> tuple[str, str]:
 	execute the given command and return the output -> [stdout, stderr]
 	"""
 
-	stream = subprocess.Popen(
-	    command.split(" "), stderr=subprocess.PIPE, universal_newlines=True
-	)
+	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
 	return stream.communicate()  # execute the command and get the result
 
 
-def parse_config_json(optimization: str) -> int:
+def parse_config_json(profile: str) -> int:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	the optimization argument decide if debug or release mode
-
-	if values are missing from the release section, debug values will be used
 	"""
 
 	global settings
@@ -253,11 +251,7 @@ def parse_config_json(optimization: str) -> int:
 	if os.path.isfile(config_filename):
 		config_file = json.load(open(config_filename))
 	else:
-		print(
-		    COLS.FG_RED,
-		    f"[ERROR]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found",
-		    COLS.RESET
-		)
+		print(COLS.FG_RED, f"[ERROR]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET)
 		return 0
 
 	# --- Scripts settings ---
@@ -320,36 +314,44 @@ def parse_config_json(optimization: str) -> int:
 
 	settings["objects_path"] = config_file["directories"]["temp_dir"]
 
-	# Optimization dependent stuff
-	opt: str = optimization
+	# ----- Profiles -----
+
+	# set the default empty profile
+	config_file["empty"] = {}
+	config_file["empty"]["libraries_names"] = []
+	config_file["empty"]["libraries_dirs"] = []
+	config_file["empty"]["compiler_args"] = ""
+	config_file["empty"]["linker_args"] = ""
+
+	print(profile)
 
 	# --- Libs ---
 	# if the current optimization section has no libs, default to debug
-	if not config_file[optimization]["libraries_names"]:
-		opt = "debug"
+	# if not config_file[optimization]["libraries_names"]:
+	# opt = "debug"
 
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	for lname in config_file[opt]["libraries_names"]:
+	for lname in config_file[profile]["libraries_names"]:
 		settings["libraries_names"] += " " + settings["args"]["library_name"] + lname
 
 	# if the current optimization section has no libs, default to debug
-	if not config_file[optimization]["libraries_dirs"]:
-		opt = "debug"
-	else:
-		opt = optimization
+	# if not config_file[optimization]["libraries_dirs"]:
+	# opt = "debug"
+	# else:
+	# opt = optimization
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
-	for Lname in config_file[opt]["libraries_dirs"]:
+	for Lname in config_file[profile]["libraries_dirs"]:
 		settings["libraries_paths"] += " " + settings["args"]["library_path"] + Lname
 
 	# --- Compiler an Linker arguments ---
 
-	if not config_file[optimization]["compiler_args"]:
-		opt = "debug"
-	else:
-		opt = optimization
-	settings["cargs"] = config_file[opt]["compiler_args"]
-	settings["largs"] = config_file[opt]["linker_args"]
+	# if not config_file[optimization]["compiler_args"]:
+	# opt = "debug"
+	# else:
+	# opt = optimization
+	settings["cargs"] = config_file[profile]["compiler_args"]
+	settings["largs"] = config_file[profile]["linker_args"]
 
 	# fix for empty args
 	if settings["cargs"]:
@@ -361,7 +363,7 @@ def parse_config_json(optimization: str) -> int:
 	return 1
 
 
-def to_recompile(filename: str, env = "") -> bool:
+def to_recompile(filename: str, env="") -> bool:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
@@ -370,7 +372,6 @@ def to_recompile(filename: str, env = "") -> bool:
 
 	global new_hashes
 	global old_hashes
-
 	"""
 	if filename not in old_hashes.keys():
 		return True
@@ -380,7 +381,7 @@ def to_recompile(filename: str, env = "") -> bool:
 		# For the same file the new and the old hashes are different, this means that the file has been modified
 		return True
 	"""
-	
+
 	# now check if an include has been modified
 
 	# collect all of the includes here
@@ -388,10 +389,10 @@ def to_recompile(filename: str, env = "") -> bool:
 
 	# while len(includes) > 0:
 
-		# I need to find the actual path of the file
-		# try /usr/include (or the compiler default includes)
-		# try the INCLUDE_PATH environment variable (should be available also in windows)
-		# try also the includes dirs given in the config file
+	# I need to find the actual path of the file
+	# try /usr/include (or the compiler default includes)
+	# try the INCLUDE_PATH environment variable (should be available also in windows)
+	# try also the includes dirs given in the config file
 
 	includes_directories = compiler_includes.copy()
 	if isinstance(env, str):
@@ -399,7 +400,7 @@ def to_recompile(filename: str, env = "") -> bool:
 	else:
 		includes_directories.extend(env)
 
-	curr = filename #includes[0]
+	curr = filename  #includes[0]
 
 	# print(includes_directories)
 
@@ -411,7 +412,7 @@ def to_recompile(filename: str, env = "") -> bool:
 			curr = fullname
 			# print(COLS.FG_GREEN, "Found", curr, COLS.RESET)
 			break
-	
+
 	# print(COLS.FG_RED, "Not Found", curr, COLS.RESET, "\n")
 
 	if curr in old_hashes:
@@ -421,14 +422,14 @@ def to_recompile(filename: str, env = "") -> bool:
 		make_new_file_hash(curr)
 		return True
 
-	for inc in get_includes(curr): 
+	for inc in get_includes(curr):
 		add_incl = parse_file_path(curr)[0] + "/"
 		# print("Add incl ->", add_incl)
-		if to_recompile(inc, add_incl): 
+		if to_recompile(inc, add_incl):
 			return True
 	# incl = get_includes(curr)
 	# if incl != None:
-		# includes.extend(incl)
+	# includes.extend(incl)
 	# includes.pop(0)
 
 	return False
@@ -438,7 +439,7 @@ def make_new_file_hash(file: str) -> str:
 	"""
 	Calculate the hash for the given file an puts it in the new_hashes file
 	"""
-	
+
 	global sha1
 
 	# sha1 hash calculation
@@ -497,7 +498,7 @@ def get_to_compile() -> list[str]:
 
 	# checking which file need to be compiled
 	file: str = ""
-	for file in settings["source_files"]: # loop trough every file of each directory
+	for file in settings["source_files"]:  # loop trough every file of each directory
 
 		if to_recompile(file):
 			print(COLS.FG_YELLOW, f"{file} needs to be compiled due to it or one of its headers being new or modified", COLS.RESET)
@@ -675,11 +676,11 @@ def main():
 		return
 
 	# Release or debug mode
-	optimization_mode: str = "debug"
-	if "-o" in sys.argv:
-		optimization_mode = "release"
+	compilation_profile: str = "empty"
+	if "-p" in sys.argv:
+		compilation_profile = get_profile(sys.argv)
 
-	if not parse_config_json(optimization_mode):
+	if not parse_config_json(compilation_profile):
 		sys.exit(1)
 
 	# go to the project dir
@@ -712,9 +713,7 @@ def main():
 
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
-		print(
-		    "  --- Compilation and linking skipped due to no new or modified files ---"
-		)
+		print("  --- Compilation and linking skipped due to no new or modified files ---")
 		return
 
 	if not os.path.exists(settings["objects_path"]):
@@ -723,9 +722,7 @@ def main():
 	# compile each file and show the output,
 	# and check for errors
 	if compile(to_compile):
-		print(
-		    f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---"
-		)
+		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
 		sys.exit(2)
 
 	# --- Linking ---
@@ -742,7 +739,7 @@ def main():
 
 	# do not overwrite the old hashes
 	if "-a" not in sys.argv:
-	    save_new_hashes()
+		save_new_hashes()
 
 
 if __name__ == "__main__":

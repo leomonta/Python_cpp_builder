@@ -18,6 +18,12 @@
 			"problemMatcher": [
 				"$msCompile"
 			]
+		},
+		{
+			"label": "format",
+			"type": "shell",
+			"command": "yapf -i cpp_builder.py",
+			"problemMatcher": [ ]
 		}
 	]
 }
