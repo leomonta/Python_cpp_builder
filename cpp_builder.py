@@ -136,7 +136,7 @@ compilers_common_args: list[dict[str]] = [
 # should be a reference to compilers_common_args
 compiler_specific_args: dict[str] = {}
 
-spinners: list[str] = ["|", "\\", "-", "/"]
+spinners: list[str] = ["|", "/", "-", "\\"]
 
 compilations: list[dict[str]] = []
 
@@ -182,13 +182,11 @@ class COLS:
 	RESET = "\033[0m"
 
 
-compilation_prefixes = ["|", f"{COLS.FG_BLUE}+", f"{COLS.FG_YELLOW}-"]
-compilation_statuses: list[str] = [
-    f"{COLS.FG_BLUE}Compiling", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"
-]
+compilation_prefixes = ["|", "+", "-"]
+compilation_statuses: list[str] = [f"{COLS.FG_BLUE}Compiling", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
 
 
-def get_compilation_status(item: dict[str], tick: int) -> str:
+def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 
 	# the first element is the spinner, takes up 1 char
 	# the second is the name of the file being compiled, this should take at max 20 char
@@ -230,8 +228,6 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 	GO_UP = "\x1b[1A"
 	CLEAR_LINE = "\x1b[2K"
 
-	compilation_failed = False
-
 	# number of lines printing at the same time
 	tick = 0
 	while True:
@@ -245,15 +241,12 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 			if item["done"] == 0: # If someone is still compiling
 				all_done = False
 
-			if item["done"] == 2: # Failure
-				compilation_failed = True
-
 		#for item in curr_compilations
 		# print(compilation_status(item))
 		time.sleep(0.15)
 		tick += 1
 
-		if all_done or compilation_failed:
+		if all_done:
 			break
 
 		# going up
@@ -261,11 +254,28 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 		for i in range(num_lines):
 			print(GO_UP, end=CLEAR_LINE)
 
+	compilation_failed = False
+
+	for item in compilations:
+		if item["done"] == 2: # Failure
+			compilation_failed = True
+
 	if compilation_failed:
 		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
 		sys.exit(2)
 
 	# all compilations done, linking
+	print("\n")
+
+
+	for item in compilations:
+		cmd = item["command"]
+		nm = item["name"].ljust(20)[:20]
+		print(f" {nm}{COLS.FG_LIGHT_BLACK}: {cmd}{COLS.RESET}")
+		print(item["output"], "\n")
+
+	# cleaning prev compilation data
+	compilations.clear()
 
 	# --- Linking ---
 
@@ -274,6 +284,7 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 	if not link(compilation_targets):
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(3)
+	print(get_compilation_status(compilations[0]))
 
 
 def get_profile(args: list[str]) -> str:
@@ -326,39 +337,32 @@ def get_includes(file: str) -> list[str]:
 	return founds
 
 
-def exe_command(command: str, name: str = "", compilation=True) -> int:
+def exe_command(command: str, name: str) -> int:
 	"""
 	execute the given command, set the ouput and return code to the correct structure
 	"""
 
 	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
-	if compilation:
-		status = {
-		    "done": 0,
-		    "name": name,
-		    "output": ""
-		}
+	status = {
+		"done": 0,
+		"name": name,
+		"output": "",
+		"command": command
+	}
 
-		compilations.append(status)
+	compilations.append(status)
 
 	out, err = stream.communicate() # execute the command and get the result
-
-	time.sleep(1)
 
 	ret = 1
 	if stream.returncode != 0:
 		ret = 2
 
-	if compilation:
-		status["output"] = err
-		status["done"] = ret
+	status["output"] = err
+	status["done"] = ret
 
-		return ret
-	else:
-		print(err)
-
-		return ret
+	return ret
 
 
 def parse_config_json(profile: str) -> int:
@@ -661,8 +665,8 @@ def link(to_compile: list[str]) -> None:
 
 	Link_cmd += settings["libraries_names"]
 
-	print(Link_cmd)
-	return exe_command(Link_cmd, compilation=False)
+	# print(Link_cmd)
+	return exe_command(Link_cmd, epn)
 
 
 def create_makefile():
