@@ -7,8 +7,10 @@
 		{
 			"name": "py compiler",
 			"type": "python",
+			"cwd": "/home/leonard/workspace/cpp/PSC/server/",
 			"request": "launch",
-			"program": "cpp_builder.py",
+			"args": ["-a"],
+			"program": "/home/leonard/workspace/python/Python_cpp_builder/cpp_builder.py",
 			"console": "integratedTerminal",
 			"justMyCode": true
 		}

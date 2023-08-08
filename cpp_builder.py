@@ -2,7 +2,7 @@
 # Building tool for cpp and hpp files
 # @Author Leonardo Montagner https://github.com/leomonta/Python_cpp_builder
 #
-# Build only the modified files on a cpp project
+# Build only the modified files on a cpp project (or relative includes headers)
 # Link and compile using the appropriate library and include path
 # Print out error and warning messages
 # add the args for the link and the compile process
@@ -10,16 +10,29 @@
 # Done: compile and link files
 # Done: check for newer version of source files
 # Done: skip compilation or linking if there are no new or modified files
-# TODO: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
-# TODO: identify each header and figure out which source file include which
-# TODO: if a config value is empty prevent double space in cmd agument
-# TODO: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
+# Done: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
+# Done: if a config value is empty prevent double space in cmd agument
+# Done: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
 # Done: added specific linker exec
 # TODO: use compiler exec if no linker exec is present
 # TODO: multithreaded compiling
-## - main.cpp  Compiling
-##   utils.cpp Done
-## / other.cpp Compiling
+## - main.cpp  Compiling.
+## / utils.cpp Compiling..
+## O success.cpp Done    -> 0 Errors, m warnings
+## X failure.cpp Failed  -> n Errors, m Warnings
+##
+## -- errcodes --
+##
+## -- failure.cpp
+##
+##
+##
+##
+## failure.cpp
+##  gcc / compiler outpur
+##
+## success.cpp
+##  gcc / compiler output
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
@@ -33,6 +46,7 @@ import os         # get directories file names
 import json       # parse cpp_builder_config.json
 import hashlib    # for calculating hashes
 import threading  # for threading, duh
+import time       #time.sleep
 import sys        # for arguments parsing
 
 
@@ -122,6 +136,13 @@ compilers_common_args: list[dict[str]] = [
 # should be a reference to compilers_common_args
 compiler_specific_args: dict[str] = {}
 
+spinners: list[str] = ["|", "\\", "-", "/"]
+
+compilation_prefixes = ["|", "O", "X"]
+compilation_statuses: list[str] = ["Compiling", "Done", "Failed"]
+
+compilations: list[dict[str]] = []
+
 
 class COLS:
 
@@ -162,6 +183,92 @@ class COLS:
 	BG_LIGHT_WHITE = "\033[107m"
 
 	RESET = "\033[0m"
+
+
+def compilation_status(item: dict[str], tick: int) -> str:
+
+	# the first element is the spinner, takes up 1 char
+	# the second is the name of the file being compiled, this should take at max 20 char
+	# the last should be the textual status of compilation, it should start after the 20 chars of the name
+	# / utils.cpp Compiling
+
+	curr_spinner = spinners[tick % len(spinners)]
+
+	loading_prefix: str = " " + compilation_prefixes[item["done"]] + " "
+	loading_suffix: str = " " + compilation_statuses[item["done"]]
+
+	if item["done"] == 0:                           # Still compiling
+		loading_prefix = f" {curr_spinner} "
+		loading_suffix += "." * ((tick % 12) // 4 + 1) # makes the dots progress 1/4 the speed of the spinner
+
+	# fill the string with spaces until 20 and truncate the string if longer than that
+	nm = item["name"].ljust(20)[:20]
+
+	return loading_prefix + nm + loading_suffix
+
+
+def compile_and_command(compilation_targets: list[str]) -> None:
+	"""
+	calls compile()
+
+	print compilation status
+
+	calls link() if compilation was fine
+	"""
+
+	# --- Compiling ---
+
+	print(COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
+
+	# compile each file and show the output,
+	# and check for errors
+	compile(compilation_targets)
+
+	GO_UP = "\x1b[1A"
+	CLEAR_LINE = "\x1b[2K"
+
+	compilation_failed = False
+
+	# number of lines printing at the same time
+	tick = 0
+	while True:
+		num_lines = len(compilations)
+
+		all_done = True
+		for item in compilations:
+			print(compilation_status(item, tick))
+			if item["done"] == 0: # If someone is still compiling
+				all_done = False
+
+			if item["done"] == 2: # Failure
+				compilation_failed = True
+
+		#for item in curr_compilations
+		# print(compilation_status(item))
+		time.sleep(0.15)
+		tick += 1
+
+		if all_done or compilation_failed:
+			break
+
+		# going up
+		# i have to go up one by one to clear evey line
+		for i in range(num_lines):
+			print(GO_UP, end=CLEAR_LINE)
+
+	if compilation_failed:
+		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
+		sys.exit(2)
+
+	# all compilations done, linking
+
+	# --- Linking ---
+
+	print(COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
+
+	if not link(compilation_targets):
+		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
+		sys.exit(3)
 
 
 def get_profile(args: list[str]) -> str:
@@ -214,28 +321,37 @@ def get_includes(file: str) -> list[str]:
 	return founds
 
 
-def print_stdout(mexage: tuple) -> bool:
-
-	out = mexage[1].split("\n")[0:-1]
-
-	res = True
-
-	for i in range(len(out)):
-		if "error:" in out[i]:
-			res = False
-		print(out[i])
-
-	return res
-
-
-def exe_command(command: str) -> tuple[str, str]:
+def exe_command(command: str, name: str = "", compilation=True) -> int:
 	"""
-	execute the given command and return the output -> [stdout, stderr]
+	execute the given command, set the ouput and return code to the correct structure
 	"""
 
 	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
-	return stream.communicate() # execute the command and get the result
+	if compilation:
+		status = {
+		    "done": 0,
+		    "name": name,
+		    "output": ""
+		}
+
+		compilations.append(status)
+
+	out, err = stream.communicate() # execute the command and get the result
+
+	ret = 1
+	if stream.returncode != 0:
+		ret = 2
+
+	if compilation:
+		status["output"] = err
+		status["done"] = ret
+
+		return ret
+	else:
+		print(err)
+
+		return ret
 
 
 def parse_config_json(profile: str) -> int:
@@ -323,33 +439,16 @@ def parse_config_json(profile: str) -> int:
 	config_file["empty"]["compiler_args"] = ""
 	config_file["empty"]["linker_args"] = ""
 
-	print(profile)
-
 	# --- Libs ---
-	# if the current optimization section has no libs, default to debug
-	# if not config_file[optimization]["libraries_names"]:
-	# opt = "debug"
-
 	# create the library args -> -lSomelib -lSomelib2 -l...
 	for lname in config_file[profile]["libraries_names"]:
 		settings["libraries_names"] += " " + settings["args"]["library_name"] + lname
-
-	# if the current optimization section has no libs, default to debug
-	# if not config_file[optimization]["libraries_dirs"]:
-	# opt = "debug"
-	# else:
-	# opt = optimization
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
 	for Lname in config_file[profile]["libraries_dirs"]:
 		settings["libraries_paths"] += " " + settings["args"]["library_path"] + Lname
 
 	# --- Compiler an Linker arguments ---
-
-	# if not config_file[optimization]["compiler_args"]:
-	# opt = "debug"
-	# else:
-	# opt = optimization
 	settings["cargs"] = config_file[profile]["compiler_args"]
 	settings["largs"] = config_file[profile]["linker_args"]
 
@@ -387,12 +486,8 @@ def to_recompile(filename: str, env="") -> bool:
 	# collect all of the includes here
 	includes: list[str]
 
-	# while len(includes) > 0:
-
 	# I need to find the actual path of the file
-	# try /usr/include (or the compiler default includes)
-	# try the INCLUDE_PATH environment variable (should be available also in windows)
-	# try also the includes dirs given in the config file
+	# try only the includes dirs given in the config file
 
 	includes_directories = compiler_includes.copy()
 	if isinstance(env, str):
@@ -400,20 +495,13 @@ def to_recompile(filename: str, env="") -> bool:
 	else:
 		includes_directories.extend(env)
 
-	curr = filename #includes[0]
-
-	# print(includes_directories)
+	curr = filename
 
 	for dir in includes_directories:
 		fullname: str = dir + "/" + curr
-		# print(dir, "-", fullname)
 		if os.path.isfile(fullname):
-			# everythin fine
 			curr = fullname
-			# print(COLS.FG_GREEN, "Found", curr, COLS.RESET)
 			break
-
-	# print(COLS.FG_RED, "Not Found", curr, COLS.RESET, "\n")
 
 	if curr in old_hashes:
 		if old_hashes[curr] != new_hashes[curr]:
@@ -424,13 +512,9 @@ def to_recompile(filename: str, env="") -> bool:
 
 	for inc in get_includes(curr):
 		add_incl = parse_file_path(curr)[0] + "/"
-		# print("Add incl ->", add_incl)
+
 		if to_recompile(inc, add_incl):
 			return True
-	# incl = get_includes(curr)
-	# if incl != None:
-	# includes.extend(incl)
-	# includes.pop(0)
 
 	return False
 
@@ -501,9 +585,8 @@ def get_to_compile() -> list[str]:
 	for file in settings["source_files"]: # loop trough every file of each directory
 
 		if to_recompile(file):
-			print(COLS.FG_YELLOW, f"{file} needs to be compiled due to it or one of its headers being new or modified", COLS.RESET)
-
 			to_compile.append(parse_file_path(file))
+			# print(COLS.FG_YELLOW, f"{file} needs to be compiled due to it or one of its headers being new or modified", COLS.RESET)
 
 	return to_compile
 
@@ -521,14 +604,12 @@ def save_new_hashes() -> None:
 			f.write(new_hashes[i] + "\n")
 
 
-def compile(to_compile: list[str]) -> bool:
+def compile(to_compile: list[str]) -> None:
 	"""
 	Compile all correct files with the specified arguments
 	"""
 
 	global settings
-
-	errors = 0
 
 	cexe = settings["compiler"]
 	includes = settings["includes"]
@@ -540,14 +621,11 @@ def compile(to_compile: list[str]) -> bool:
 		obj_name: str = "".join(file[0].split("/"))
 
 		command = f'{cexe} {oargs["force_colors"]}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
-		print(command)
-		errors += not print_stdout(exe_command(command))
-		print("\n")
 
-	return errors > 0
+		threading.Thread(target=exe_command, args=(command, f"{file[1]}.{file[2]}")).start()
 
 
-def link(to_compile: list[str]) -> bool:
+def link(to_compile: list[str]) -> None:
 	"""
 	Link together all the files that have been compiled with the specified libraries and arguments
 	"""
@@ -577,7 +655,7 @@ def link(to_compile: list[str]) -> bool:
 	Link_cmd += settings["libraries_names"]
 
 	print(Link_cmd)
-	return print_stdout(exe_command(Link_cmd))
+	return exe_command(Link_cmd, compilation=False)
 
 
 def create_makefile():
@@ -708,10 +786,6 @@ def main():
 	# get the file needed to compile
 	to_compile = get_to_compile()
 
-	# --- Compiling ---
-
-	print(COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
-
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
 		print("  --- Compilation and linking skipped due to no new or modified files ---")
@@ -720,19 +794,8 @@ def main():
 	if not os.path.exists(settings["objects_path"]):
 		os.makedirs(settings["objects_path"])
 
-	# compile each file and show the output,
-	# and check for errors
-	if compile(to_compile):
-		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
-		sys.exit(2)
-
-	# --- Linking ---
-
-	print(COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
-
-	if not link(to_compile):
-		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
-		sys.exit(3)
+	# manages compilation and printing
+	compile_and_command(to_compile)
 
 	if "post" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
