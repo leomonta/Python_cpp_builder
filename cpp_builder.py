@@ -138,9 +138,6 @@ compiler_specific_args: dict[str] = {}
 
 spinners: list[str] = ["|", "\\", "-", "/"]
 
-compilation_prefixes = ["|", "O", "X"]
-compilation_statuses: list[str] = ["Compiling", "Done", "Failed"]
-
 compilations: list[dict[str]] = []
 
 
@@ -185,7 +182,13 @@ class COLS:
 	RESET = "\033[0m"
 
 
-def compilation_status(item: dict[str], tick: int) -> str:
+compilation_prefixes = ["|", f"{COLS.FG_BLUE}+", f"{COLS.FG_YELLOW}-"]
+compilation_statuses: list[str] = [
+    f"{COLS.FG_BLUE}Compiling", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"
+]
+
+
+def get_compilation_status(item: dict[str], tick: int) -> str:
 
 	# the first element is the spinner, takes up 1 char
 	# the second is the name of the file being compiled, this should take at max 20 char
@@ -194,7 +197,7 @@ def compilation_status(item: dict[str], tick: int) -> str:
 
 	curr_spinner = spinners[tick % len(spinners)]
 
-	loading_prefix: str = " " + compilation_prefixes[item["done"]] + " "
+	loading_prefix: str = f" " + compilation_prefixes[item["done"]] + " "
 	loading_suffix: str = " " + compilation_statuses[item["done"]]
 
 	if item["done"] == 0:                           # Still compiling
@@ -204,7 +207,7 @@ def compilation_status(item: dict[str], tick: int) -> str:
 	# fill the string with spaces until 20 and truncate the string if longer than that
 	nm = item["name"].ljust(20)[:20]
 
-	return loading_prefix + nm + loading_suffix
+	return loading_prefix + COLS.FG_LIGHT_BLACK + nm + loading_suffix + COLS.RESET
 
 
 def compile_and_command(compilation_targets: list[str]) -> None:
@@ -235,8 +238,10 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 		num_lines = len(compilations)
 
 		all_done = True
-		for item in compilations:
-			print(compilation_status(item, tick))
+		for i in range(num_lines):
+			item = compilations[i]
+
+			print(get_compilation_status(item, tick))
 			if item["done"] == 0: # If someone is still compiling
 				all_done = False
 
@@ -338,6 +343,8 @@ def exe_command(command: str, name: str = "", compilation=True) -> int:
 		compilations.append(status)
 
 	out, err = stream.communicate() # execute the command and get the result
+
+	time.sleep(1)
 
 	ret = 1
 	if stream.returncode != 0:
