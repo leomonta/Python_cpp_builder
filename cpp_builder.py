@@ -260,19 +260,18 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 		if item["done"] == 2: # Failure
 			compilation_failed = True
 
-	if compilation_failed:
-		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
-		sys.exit(2)
-
 	# all compilations done, linking
 	print("\n")
-
 
 	for item in compilations:
 		cmd = item["command"]
 		nm = item["name"].ljust(20)[:20]
-		print(f" {nm}{COLS.FG_LIGHT_BLACK}: {cmd}{COLS.RESET}")
+		print(f" {nm}{COLS.FG_LIGHT_BLACK} {cmd}{COLS.RESET}")
 		print(item["output"], "\n")
+
+	if compilation_failed:
+		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
+		sys.exit(2)
 
 	# cleaning prev compilation data
 	compilations.clear()
@@ -285,6 +284,13 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(3)
 	print(get_compilation_status(compilations[0]))
+	print("\n")
+
+	compilations[0]
+	cmd = item["command"]
+	nm = item["name"].ljust(20)[:20]
+	print(f" {nm}{COLS.FG_LIGHT_BLACK}: {cmd}{COLS.RESET}")
+	print(item["output"], "\n")
 
 
 def get_profile(args: list[str]) -> str:
@@ -345,10 +351,10 @@ def exe_command(command: str, name: str) -> int:
 	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
 	status = {
-		"done": 0,
-		"name": name,
-		"output": "",
-		"command": command
+	    "done": 0,
+	    "name": name,
+	    "output": "",
+	    "command": command
 	}
 
 	compilations.append(status)
