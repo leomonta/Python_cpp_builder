@@ -2,9 +2,9 @@
 	"scripts": {
 	},
 	"compiler": {
-		"compiler_style": "msvc",
-		"compiler_exe": "cl",
-		"linker_exe": "link"
+		"compiler_style": "gcc",
+		"compiler_exe": "gcc",
+		"linker_exe": "ld"
 	},
 	
 	"directories": {
@@ -12,6 +12,7 @@
 		"exe_path_name": "bin/game.bin",
 		"include_dirs": [
 			"include",
+			"/usr/local/include",
 			"ext"
 		],
 		"source_dirs": [
@@ -21,22 +22,23 @@
 	},
 
 	"debug": {
-		"compiler_args": "/MT /Z7 /Wall /EHsc",
-		"linker_args": "",
+		"compiler_args": "-g3 -fanalyzer -fsanitize=address -Wall",
+		"linker_args": "-fsanitize=address",
 		"libraries_dirs": [
 		],
 		"libraries_names": [
-			"kernel32.lib"
+			"pthread"
 		]
 
 	},
 
 	"release": {
-		"compiler_args": "-O2 -std=c++2a",
+		"compiler_args": "-O2",
 		"linker_args": "-s",
 		"libraries_dirs": [
 		],
 		"libraries_names": [
+			"pthread"
 		]
 	}
 }

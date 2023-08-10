@@ -5,28 +5,28 @@
 When I started making stuff in c/c++ without an IDE (that compiles for you, VSCode does not) I encountered Makefile, and honestly, I hate it
 There are some cool stuff that you can do with it but is too complex and with way too many hidden and implicit rules that are just stupid (e.g. `.c.o`)
 
-So my brain had the brillian Idea of making an entire python script to compile projects the way i organize them. Cuz it was "Easier and Fun, Trust me"
+So my brain had the brillian idea of making an entire python script to compile projects the way i organize them. Cuz it was "Easier and Fun, Trust me"
 
-I keep my source orginized in different directories, I keep the source files in `src/`, my includ files in `include/`, object files (`.o`) in `obj/` and so on, Makefile make this hard somehow, but with some variations from project to project, some times i use the `ext/` folder to keep libraries source files and includes, and often i use different libraries.
+I keep my files organized in specific directories, I keep the source files in `src/`, my includes in `include/`, object files (`.o`) in `obj/` and so on, Makefile make this hard for some reason (most probably I'm just too stupid / lazy to do it but nevermind).
+But not always, there are some variations from project to project, e.g. some times i use the `ext/` folder to keep libraries source files and includes, and often i use different libraries while linking
 
-Also, I would like to use this same framework for other OSes (Windows), and compilers (Rust)
+Also, I would like to use this same framework for other OSes (Windows), and compilers (Rustc, clang)
 
 ## Modus Operandis: (?)
 
 A config file (`cpp_builder_config.json`) is always needed, even though i might add a simple empty config file in the builder if none is found,
-The config file i a json because the key helps explain the what the requested info is, and i easily edited by people, + widely used for everything
+The config file is a json mainly because the key helps explain the what the required info is, and is easily edited by people, + it's widely used for everything
 
-It only compiles files that have been modifies from the previous call to the builder, to know which files have been modified it computes an hash of the file itself and compares it to a saved copy of the previous compilation (the hashes are stored unceremoniously in files_hash.txt)
-This check is also performed recursively for every include the file contain, if the include name is enclosed int double quptes `"`, since those are usually the one that the programmer writes
+The builder only compiles files that have been modifies from the previous times it was called, to know which files have been modified it computes an hash of the file itself and compares it to a saved copy of the previous compilation (the hashes are stored unceremoniously in `files_hash.txt`)
+This check is also performed recursively for every `#include` the file contain, only the `#include` with the name enclosed int double quptes `"` are checked, since those are usually the one that the programmer writes
 If an header file has been modified all of the source files that include that header will be recompilated
-And finally writes the new hashes to file
 
-Profiles are just free floating keys, that can be used via `-p profileName`, in the config file if not profile is specify an empty profile, with all of the param empty, is used
+Different profiles are supported, the are just free floating keys, that can be used via `-p profileName`, in the config file; if no profile is specified an empty profile, with all of the param empty, is used
 Sometimes all of the params empty is fine
 
 ### Process
 
-Checks for cli switches and respects them
+Checks for cli switches
 
 Loads the files hashes in an array (if the `-a` is not specified)
 
@@ -38,12 +38,12 @@ If the `pre` key is present in `scripts` execute the given script
 Lists of of the files that are in the `source_dirs` and select only the one that can be compiled (e.g. .c, .cpp. .h) and have been modified
 > Early exit if no files to compile are found
 
-Create a thread that calls the given compiler with all of the correct arguments and prints the waiting with a cool animation on the stdout
+Create a thread that calls the given compiler with all of the correct arguments for each file that needs to be compiled
 
 When all the threads are done prints all of the compiler output
 > Early exit if there is an error
 
-Call the given compiler on all of the compiled object files and prints the linker output
+Call the given linker on all of the compiled object files and prints its output
 
 If the `post` key is present in `scripts` execute the given script
 
@@ -60,20 +60,24 @@ jkjk
 
 Yes they are, but not immediatly
 
-When checking if a has been modified or not the search stops at the first one that has been, in fact modified.
-This means when `files_hash.txt` is empty, or simply a minimally complex amout of headers have been added, many calls to the builder are needed to reach the 'top' of the include chain
+When checking if a file has been modified or not the search stops at the first one that has been, in fact modified.
+This means that when `files_hash.txt` is empty, or simply a minimally complex amount of headers have been added, many calls to the builder are needed to reach the 'top' of the include chain
 
 This is fixable but I'm probably not going to since it's not that big of a problem
 
 ### The Makefile export fails miserably
 
-The Makefile "exporter" i quite old and needs an update as of know it misses compatibility for
+The Makefile "exporter" is quite old and needs an update. 
+As of now it misses compatibility for
 - Different profiles
 - New setting structure
 - Pre and post scripts
 - Use of implicit rules (that i don't like though)
 
 ## Options:
+
+These are all of the options that can be passed to the builder
+
 ```
 	-a              rebuild the entire project
 	-p profile name	utilize the given profile specifies in the config file
