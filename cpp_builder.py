@@ -488,17 +488,6 @@ def to_recompile(filename: str, env="") -> bool:
 
 	global new_hashes
 	global old_hashes
-	"""
-	if filename not in old_hashes.keys():
-		return True
-
-	# this means that filename is in old_hashses
-	if old_hashes[filename] != new_hashes[filename]:
-		# For the same file the new and the old hashes are different, this means that the file has been modified
-		return True
-	"""
-
-	# now check if an include has been modified
 
 	# collect all of the includes here
 	includes: list[str]
