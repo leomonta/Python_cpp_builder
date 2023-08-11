@@ -286,7 +286,7 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 	print(get_compilation_status(compilations[0]))
 	print("\n")
 
-	compilations[0]
+	item = compilations[0]
 	cmd = item["command"]
 	nm = item["name"].ljust(20)[:20]
 	print(f" {nm}{COLS.FG_LIGHT_BLACK}: {cmd}{COLS.RESET}")
