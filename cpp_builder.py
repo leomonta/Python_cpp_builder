@@ -38,59 +38,23 @@ import time       #time.sleep
 import sys        # for arguments parsing
 
 
-includes_variable: dict[str, list[str]] = {
-                                            # names of all includes dir + name
-    "all_includes": [],
+CONFIG_FILENAME = "cpp_builder_config.json"
+HASH_FILENAME = "files_hash"
 
-                                            # file: list of references (indices) to include files
-    "src_references": {}
+DEFAULT_COMPILER = "gcc"
+
+DEFAULT_PROFILE = {
+    "libraries_names": [],
+    "libraries_dirs": [],
+    "compiler_args": "",
+    "linker_args": ""
 }
 
-settings: dict[str, any] = {
-                             # name of the compiler and linker executable
-    "compiler": "",
-    "linker": "",
+SPINNERS: list[str] = ["|", "/", "-", "\\"]
 
-                             # compiler and linker args
-    "cargs": "",
-    "largs": "",
+SOURCE_FILES_EXTENSIONS: list[str] = ["c", "cpp", "cxx", "c++", "cc", "C", "s", "rs"]
 
-                             # misc args
-                             # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
-    "args": {},
-
-                             # path and name of the final executable
-    "exe_path_name": "",
-
-                             # base directory of the project
-    "project_path": "",
-
-                             # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
-    "includes": "",
-
-                             # directory where to leave the compiled object files
-    "objects_path": "",
-
-                             # directories containing the names of the source directories
-    "source_files": [],
-
-                             # the string composed by the names of the libraries -> "-lpthread -lm ..."
-    "libraries_names": "",
-
-                             # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
-    "libraries_paths": "",
-}
-
-# for now use these, might add more in the future
-compiler_includes: list[str] = ["./"]
-
-sha1 = hashlib.sha1()
-old_hashes: dict[str, str] = {}
-new_hashes: dict[str, str] = {}
-
-source_files_extensions: list[str] = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
-
-compilers_common_args: list[dict[str]] = [
+COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
     {
         "compile_only": "-c",
         "output_compiler": "-o ",
@@ -121,12 +85,9 @@ compilers_common_args: list[dict[str]] = [
     }
 ]
 
-# should be a reference to compilers_common_args
-compiler_specific_args: dict[str] = {}
-
-spinners: list[str] = ["|", "/", "-", "\\"]
-
-compilations: list[dict[str]] = []
+COMPILATION_STATUS_COMPILING = 0
+COMPILATION_STATUS_DONE = 1
+COMPILATION_STATUS_FAILED = 2
 
 
 class COLS:
@@ -170,8 +131,18 @@ class COLS:
 	RESET = "\033[0m"
 
 
-compilation_prefixes = ["|", "+", "-"]
-compilation_statuses: list[str] = [f"{COLS.FG_BLUE}Compiling", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
+PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
+PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Compiling", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
+
+
+def get_value(dict: any, key: str, val="") -> dict | str:
+	"""
+	Tries to get the desired value from the dict, if fails returns val
+	"""
+	try:
+		return dict[key]
+	except:
+		return val
 
 
 def get_compilation_status(item: dict[str], tick: int = 0) -> str:
@@ -181,22 +152,23 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	# the last should be the textual status of compilation, it should start after the 20 chars of the name
 	# / utils.cpp Compiling
 
-	curr_spinner = spinners[tick % len(spinners)]
+	curr_spinner = SPINNERS[tick % len(SPINNERS)]
 
-	loading_prefix: str = f" " + compilation_prefixes[item["done"]] + " "
-	loading_suffix: str = " " + compilation_statuses[item["done"]]
+	print
+	prefix: str = f" " + PROGRRESS_PREFIXES[item["result"]] + " "
+	suffix: str = " " + PROGRESS_STATUS[item["result"]]
 
-	if item["done"] == 0:                           # Still compiling
-		loading_prefix = f" {curr_spinner} "
-		loading_suffix += "." * ((tick % 12) // 4 + 1) # makes the dots progress 1/4 the speed of the spinner
+	if item["result"] == 0:                 # Still compiling
+		prefix = f" {curr_spinner} "
+		suffix += "." * ((tick % 12) // 4 + 1) # makes the dots progress 1/4 the speed of the spinner
 
 	# fill the string with spaces until 20 and truncate the string if longer than that
-	nm = item["name"].ljust(20)[:20]
+	name = item["name"].ljust(20)[:20]
 
-	return loading_prefix + COLS.FG_LIGHT_BLACK + nm + loading_suffix + COLS.RESET
+	return prefix + COLS.FG_LIGHT_BLACK + name + suffix + COLS.RESET
 
 
-def compile_and_command(compilation_targets: list[str]) -> None:
+def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 	"""
 	calls compile()
 
@@ -209,52 +181,51 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 
 	print(COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
 
+	# where the status of the different compilations is stored
+	compilations: list[dict] = []
 	# compile each file and show the output,
 	# and check for errors
-	compile(compilation_targets)
+	compile(compilation_targets, settings, compilations)
 
 	GO_UP = "\x1b[1A"
 	CLEAR_LINE = "\x1b[2K"
 
-	# number of lines printing at the same time
+	# time basically
 	tick = 0
 	while True:
 		num_lines = len(compilations)
 
 		all_done = True
-		for i in range(num_lines):
-			item = compilations[i]
+		for item in compilations:
 
 			print(get_compilation_status(item, tick))
-			if item["done"] == 0: # If someone is still compiling
+			if item["result"] == 0: # If someone is still compiling
 				all_done = False
-
-		#for item in curr_compilations
-		# print(compilation_status(item))
-		time.sleep(0.15)
-		tick += 1
 
 		if all_done:
 			break
 
-		# going up
 		# i have to go up one by one to clear evey line
 		for i in range(num_lines):
 			print(GO_UP, end=CLEAR_LINE)
 
-	compilation_failed = False
+		# how quickly to refresh the printing
+		time.sleep(0.15)
+		tick += 1
+
+	compilation_failed: bool = False
 
 	for item in compilations:
-		if item["done"] == 2: # Failure
+		if item["result"] == COMPILATION_STATUS_FAILED: # Failure
 			compilation_failed = True
 
-	# all compilations done, linking
 	print("\n")
 
+	# all compilations done, linking
 	for item in compilations:
 		cmd = item["command"]
-		nm = item["name"].ljust(20)[:20]
-		print(f" {nm}{COLS.FG_LIGHT_BLACK} {cmd}{COLS.RESET}")
+		name = item["name"].ljust(20)[:20]
+		print(f" {name}{COLS.FG_LIGHT_BLACK} {cmd}{COLS.RESET}")
 		print(item["output"], "\n")
 
 	if compilation_failed:
@@ -268,17 +239,23 @@ def compile_and_command(compilation_targets: list[str]) -> None:
 
 	print(COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
 
-	if not link(compilation_targets):
+	link_status = {
+	    "result": COMPILATION_STATUS_COMPILING,
+	    "name": "",
+	    "output": "",
+	    "command": ""
+	}
+	if not link(compilation_targets, settings, link_status):
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(3)
-	print(get_compilation_status(compilations[0]))
+
+	print(get_compilation_status(link_status))
 	print("\n")
 
-	item = compilations[0]
-	cmd = item["command"]
-	nm = item["name"].ljust(20)[:20]
+	cmd = link_status["command"]
+	nm = link_status["name"].ljust(20)[:20]
 	print(f" {nm}{COLS.FG_LIGHT_BLACK}: {cmd}{COLS.RESET}")
-	print(item["output"], "\n")
+	print(link_status["output"], "\n")
 
 
 def get_profile(args: list[str]) -> str:
@@ -331,30 +308,21 @@ def get_includes(file: str) -> list[str]:
 	return founds
 
 
-def exe_command(command: str, name: str) -> int:
+def exe_command(command: str, status: dict) -> int:
 	"""
 	execute the given command, set the ouput and return code to the correct structure
 	"""
 
 	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
 
-	status = {
-	    "done": 0,
-	    "name": name,
-	    "output": "",
-	    "command": command
-	}
-
-	compilations.append(status)
-
 	out, err = stream.communicate() # execute the command and get the result
 
-	ret = 1
-	if stream.returncode != 0:
-		ret = 2
+	ret = COMPILATION_STATUS_DONE
+	if stream.returncode != 0: # the actual program return code, 0 is ok
+		ret = COMPILATION_STATUS_FAILED
 
 	status["output"] = err
-	status["done"] = ret
+	status["result"] = ret
 
 	return ret
 
@@ -365,99 +333,159 @@ def parse_config_json(profile: str) -> int:
 	the optimization argument decide if debug or release mode
 	"""
 
-	global settings
+	settings: dict[str, any] = {
+	                              # name of the compiler and linker executable
+	    "compiler": "gcc",
+	    "linker": "gcc",
+
+	                              # compiler and linker args
+	    "cargs": "",
+	    "largs": "",
+
+	                              # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
+	    "specifics": {},
+
+	                              # path and name of the final executable
+	    "exe_path_name": "",
+
+	                              # base directory of the project
+	    "project_path": "",
+
+	                              # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+	    "includes": "",
+
+	                              # list of all the includes as they appear in the config file
+	    "raw_includes": [],
+
+	                              # directory where to leave the compiled object files
+	    "objects_path": "",
+
+	                              # directories containing the names of the source directories
+	    "source_files": [],
+
+	                              # the string composed by the names of the libraries -> "-lpthread -lm ..."
+	    "libraries_names": "",
+
+	                              # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+	    "libraries_paths": "",
+
+	                              # name of the scripts to execute
+	    "scripts": {}
+	}
 
 	# load and parse the file
 	config_filename = "cpp_builder_config.json"
 	if os.path.isfile(config_filename):
 		config_file = json.load(open(config_filename))
 	else:
-		print(COLS.FG_RED, f"[ERROR]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET)
-		return 0
+		print(COLS.FG_YELLOW, f"[WARNING]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET)
+		return dict
+
+	del config_filename
 
 	# --- Scripts settings ---
-	settings["scripts"] = config_file["scripts"]
+	settings["scripts"] = get_value(config_file, "scripts", {})
 
 	# --- Compiler settings ---
 	# get the compiler executable (gcc, g++, clang, rustc, etc)
 	# and the linker executable, plus the type (needed for cli args)
 
-	settings["compiler"] = config_file["compiler"]["compiler_exe"]
+	compiler_settings = get_value(config_file, "compiler")
 
-	cstyle: str = config_file["compiler"]["compiler_style"]
+	settings["compiler"] = get_value(compiler_settings, "compiler_exe", DEFAULT_COMPILER)
+
+	temp = get_value(compiler_settings, "compiler_style", DEFAULT_COMPILER)
 
 	# 0 gcc / clang
 	# 1 msvc
 	# 2 rust
 	compiler_type: int = 0
 
-	if cstyle == "gcc":
+	if temp == "gcc":
 		compiler_type = 0
-	elif cstyle == "clang":
+	elif temp == "clang":
 		compiler_type = 0
-	elif cstyle == "msvc":
+	elif temp == "msvc":
 		compiler_type = 1
-	elif cstyle == "rustc":
+	elif temp == "rustc":
 		compiler_type = 2
 
-	settings["args"] = compilers_common_args[compiler_type]
+	del temp
 
-	settings["linker"] = config_file["compiler"]["linker_exe"]
-    if settings["linker"] == "":
-        settings["linker"] = settings["args"]
+	settings["specifics"] = COMPILER_SPECIFIC_ARGS[compiler_type]
 
+	del compiler_type
+
+	# if no linker is specified use the compiler executable
+	settings["linker"] = get_value(compiler_settings, "linker_exe", settings["compiler"])
+
+	del compiler_settings
+
+	#
 	# --- Directories settings ---
+	#
 	# Where is the project
 	# where are the source files and the include files
 
+	directories_settings = get_value(config_file, "directories")
+
 	# base directory for ALL the other directories and files
-	settings["project_path"] = config_file["directories"]["project_dir"]
+	settings["project_path"] = get_value(directories_settings, "project_dir", "./")
 
 	# name of the final executable
-	settings["exe_path_name"] = config_file["directories"]["exe_path_name"]
+	settings["exe_path_name"] = get_value(directories_settings, "exe_path_name", "a.out")
 
 	targets: list[str] = []
 
 	old_dir: str = os.getcwd()
-
 	os.chdir(settings["project_path"])
-	for sdir in config_file["directories"]["source_dirs"]:
+
+	for sdir in get_value(directories_settings, "source_dirs", ["src"]):
 		for path, subdirs, files in os.walk(sdir):
 			for name in files:
 				targets.append(f"{path}/{name}")
 
 	os.chdir(old_dir)
 
+	del old_dir, path, subdirs, files, name, sdir
+
 	settings["source_files"] = targets
 
-	# create the includes args -> -IInclude -ISomelibrary/include -I...
-	for Idir in config_file["directories"]["include_dirs"]:
-		compiler_includes.insert(1, Idir)
-		settings["includes"] += " " + settings["args"]["include_path"] + Idir
+	del targets
 
-	settings["objects_path"] = config_file["directories"]["temp_dir"]
+	# create the includes args -> -IInclude -ISomelibrary/include -I...
+	for Idir in get_value(directories_settings, "include_dirs", ["include"]):
+		settings["raw_includes"].append(Idir)
+		settings["includes"] += " " + settings["specifics"]["include_path"] + Idir
+
+	del Idir
+
+	settings["objects_path"] = get_value(directories_settings, ["temp_dir"], "obj")
 
 	# ----- Profiles -----
 
-	# set the default empty profile
-	config_file["empty"] = {}
-	config_file["empty"]["libraries_names"] = []
-	config_file["empty"]["libraries_dirs"] = []
-	config_file["empty"]["compiler_args"] = ""
-	config_file["empty"]["linker_args"] = ""
+	del directories_settings
+
+	profile_settings = get_value(config_file, profile, DEFAULT_PROFILE)
 
 	# --- Libs ---
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	for lname in config_file[profile]["libraries_names"]:
-		settings["libraries_names"] += " " + settings["args"]["library_name"] + lname
+	for lname in get_value(profile_settings, "libraries_names", DEFAULT_PROFILE["libraries_names"]):
+		settings["libraries_names"] += " " + settings["specifics"]["library_name"] + lname
+
+	# cant be sure if it has been created
+	# del lname
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
-	for Lname in config_file[profile]["libraries_dirs"]:
-		settings["libraries_paths"] += " " + settings["args"]["library_path"] + Lname
+	for ldname in get_value(profile_settings, "libraries_dirs", DEFAULT_PROFILE["libraries_dirs"]):
+		settings["libraries_paths"] += " " + settings["specifics"]["library_path"] + ldname
+
+	# cant be sure if it has been created
+	# del ldname
 
 	# --- Compiler an Linker arguments ---
-	settings["cargs"] = config_file[profile]["compiler_args"]
-	settings["largs"] = config_file[profile]["linker_args"]
+	settings["cargs"] = get_value(profile, "compiler_args", DEFAULT_PROFILE["compiler_args"])
+	settings["largs"] = get_value(profile, "linker_args", DEFAULT_PROFILE["linker_args"])
 
 	# fix for empty args
 	if settings["cargs"]:
@@ -466,18 +494,15 @@ def parse_config_json(profile: str) -> int:
 	if settings["largs"]:
 		settings["largs"] = " " + settings["largs"]
 
-	return 1
+	return settings
 
 
-def to_recompile(filename: str, env="") -> bool:
+def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> bool:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
 	Or an include chain (God help me this shit is recursive) has been modified
 	"""
-
-	global new_hashes
-	global old_hashes
 
 	# collect all of the includes here
 	includes: list[str]
@@ -485,7 +510,9 @@ def to_recompile(filename: str, env="") -> bool:
 	# I need to find the actual path of the file
 	# try only the includes dirs given in the config file
 
-	includes_directories = compiler_includes.copy()
+	includes_directories = [".", ""]
+
+	# have to do this cus cannot append([]) or extend(str)
 	if isinstance(env, str):
 		includes_directories.append(env)
 	else:
@@ -503,13 +530,16 @@ def to_recompile(filename: str, env="") -> bool:
 		if old_hashes[curr] != new_hashes[curr]:
 			return True
 	else:
-		make_new_file_hash(curr)
+		new_hashes[curr] = (make_new_file_hash(curr))
 		return True
+
+	# the file is known but not modified
+	# check the includes
 
 	for inc in get_includes(curr):
 		add_incl = parse_file_path(curr)[0] + "/"
 
-		if to_recompile(inc, add_incl):
+		if to_recompile(inc, old_hashes, new_hashes, add_incl):
 			return True
 
 	return False
@@ -519,43 +549,34 @@ def make_new_file_hash(file: str) -> str:
 	"""
 	Calculate the hash for the given file an puts it in the new_hashes file
 	"""
-
-	global sha1
-
-	# sha1 hash calculation
-
-	# print("Opening", file)
-	with open(file, "rb") as f:
-		sha1.update(f.read())
-
-	# insert in the new_hashes dict the key filename with the value hash
-	new_hashes[file] = sha1.hexdigest() # create the new hash
-
 	# i need to re-instantiate the object to empty it
 	sha1 = hashlib.sha1()
 
+	# sha1 hash calculation
+	with open(file, "rb") as f:
+		sha1.update(f.read())
 
-def calculate_new_hashes() -> None:
+	return sha1.hexdigest() # create the new hash
+
+
+def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
 	"""
 	Calculate the hashes for all the source files
 	"""
 
-	global settings
-
 	for file in old_hashes: # loop trough every file of each directory
 
-		make_new_file_hash(file)
+		new_hashes.append(make_new_file_hash(file))
 
 
-def load_old_hashes() -> None:
+def load_old_hashes() -> dict[str, str]:
 	"""
-	Load in old_hashes the hashes present in files_hash.txt
+	Load in old_hashes the hashes present in files_hash
 	"""
-
-	global old_hashes
+	hashes: dict[str, str] = {}
 
 	# read hashes from files and add them to old_hashes array
-	with open("files_hash.txt", "r") as f:
+	with open(HASH_FILENAME, "r") as f:
 		while True:
 			data = f.readline()
 			if not data:
@@ -564,35 +585,32 @@ def load_old_hashes() -> None:
 
 			# remove trailing newline
 			temp[1] = temp[1].replace("\n", "")
-			old_hashes[temp[0]] = temp[1]
+			hashes[temp[0]] = temp[1]
+
+	return hashes
 
 
-def get_to_compile() -> list[str]:
+def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, add_incl: list[str]) -> list[str]:
 	"""
 	return a list of files and their directories that need to be compiled
 	"""
-
-	global settings
 
 	to_compile: list[tuple[str, str, str]] = [] # contains directory and filename
 
 	# checking which file need to be compiled
 	file: str = ""
-	for file in settings["source_files"]: # loop trough every file of each directory
+	for file in source_files: # loop trough every file of each directory
 
-		if to_recompile(file):
+		if to_recompile(file, old_hashes, new_hashes, add_incl):
 			to_compile.append(parse_file_path(file))
-			# print(COLS.FG_YELLOW, f"{file} needs to be compiled due to it or one of its headers being new or modified", COLS.RESET)
 
 	return to_compile
 
 
-def save_new_hashes() -> None:
+def save_new_hashes(new_hashes: dict) -> None:
 	"""
 	Write all the hashes on files_hash.txt
 	"""
-
-	global new_hashes
 
 	with open("files_hash.txt", "w") as f:
 		for i in new_hashes.keys():
@@ -600,33 +618,36 @@ def save_new_hashes() -> None:
 			f.write(new_hashes[i] + "\n")
 
 
-def compile(to_compile: list[str]) -> None:
+def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> None:
 	"""
-	Compile all correct files with the specified arguments
+	Calls the compiler with the specified arguments
 	"""
-
-	global settings
 
 	cexe = settings["compiler"]
 	includes = settings["includes"]
 	cargs = settings["cargs"]
 	obj_dir = settings["objects_path"]
-	oargs = settings["args"]
+	oargs = settings["specifics"]
 
 	for file in to_compile:
 		obj_name: str = "".join(file[0].split("/"))
 
 		command = f'{cexe} {oargs["force_colors"]}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 
-		threading.Thread(target=exe_command, args=(command, f"{file[1]}.{file[2]}")).start()
+		result = {
+		    "result": COMPILATION_STATUS_COMPILING,
+		    "name": f"{file[1]}.{file[2]}",
+		    "output": "",
+		    "command": command
+		}
+		compilations.append(result)
+		threading.Thread(target=exe_command, args=(command, result)).start()
 
 
-def link(to_compile: list[str]) -> None:
+def link(to_compile: list[str], settings: dict, status: dict) -> None:
 	"""
 	Link together all the files that have been compiled with the specified libraries and arguments
 	"""
-
-	global settings
 
 	to_link: list[str] = []
 
@@ -637,21 +658,22 @@ def link(to_compile: list[str]) -> None:
 	lexe = settings["linker"]
 	largs = settings["largs"]
 	epn = settings["exe_path_name"]
-	Libs = settings["libraries_paths"]
+	libs = settings["libraries_paths"]
 	obj_dir = settings["objects_path"]
-	oargs = settings["args"]
+	oargs = settings["specifics"]
 
-	Link_cmd = f'{lexe}{largs} {oargs["output_linker"]}{epn}{Libs}'
+	command = f'{lexe}{largs} {oargs["output_linker"]}{epn}{libs}'
 
 	for file in to_link:
 		obj_name: str = "".join(file[0].split("/"))
 
-		Link_cmd += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
+		command += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
 
-	Link_cmd += settings["libraries_names"]
+	command += settings["libraries_names"]
 
-	# print(Link_cmd)
-	return exe_command(Link_cmd, epn)
+	status["name"] = epn
+	status["command"] = command
+	return exe_command(command, status)
 
 
 def create_makefile():
@@ -743,63 +765,66 @@ def create_makefile():
 
 def main():
 
-	global settings
-
 	# makefile option
 	if "-e" in sys.argv:
 		create_makefile()
 		return
 
 	# Release or debug mode
-	compilation_profile: str = "empty"
-	if "-p" in sys.argv:
-		compilation_profile = get_profile(sys.argv)
+	compilation_profile = get_profile(sys.argv)
 
-	if not parse_config_json(compilation_profile):
-		sys.exit(1)
+	# settings is garanteted to have all of the necessary values
+	settings = parse_config_json(compilation_profile)
 
-	# go to the project dir
+	# script are executed from the project path
 	os.chdir(settings["project_path"])
 
-	# Execute pre-script
+	# TODO: progress spinner here
 	if "pre" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
-		print(exe_command(f'./{settings["scripts"]["pre"]}')[1])
+		result = {}
+		exe_command(f'./{settings["scripts"]["pre"]}', result)
+		print(get_compilation_status(result))
 
 	# create file if it does not exist
-	if not os.path.exists("files_hash.txt"):
-		f = open("files_hash.txt", "w")
+	if not os.path.exists(HASH_FILENAME):
+		f = open(HASH_FILENAME, "w")
 		f.close()
 
-	# by not loading old hashes they all look new
+	old_hashes: dict = {}
+
+	# by not loading old hashes, all of the files results new
 	if "-a" not in sys.argv:
 		# load old hashes
-		load_old_hashes()
+		old_hashes = load_old_hashes()
 
+	new_hashes: dict = {}
 	# obtain new hashes
-	calculate_new_hashes()
+	calculate_new_hashes(new_hashes, old_hashes)
 
 	# get the file needed to compile
-	to_compile = get_to_compile()
+	to_compile = get_to_compile(settings["source_files"], old_hashes, new_hashes, settings["raw_includes"])
 
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
-		print("  --- Compilation and linking skipped due to no new or modified files ---")
+		print(f"{COLS.FG_YELLOW} --- Compilation and linking skipped due to no new or modified files ---{COLS.RESET}")
 		return
 
 	if not os.path.exists(settings["objects_path"]):
 		os.makedirs(settings["objects_path"])
 
 	# manages compilation and printing
-	compile_and_command(to_compile)
+	compile_and_command(to_compile, settings)
 
 	if "post" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
-		print(exe_command(f'./{settings["scripts"]["post"]}')[1])
+		result = {}
+		exe_command(f'./{settings["scripts"]["post"]}', result)
+		print(get_compilation_status(result))
 
 	# do not overwrite the old hashes
 	if "-a" not in sys.argv:
-		save_new_hashes()
+		save_new_hashes(new_hashes)
 
 
 if __name__ == "__main__":
