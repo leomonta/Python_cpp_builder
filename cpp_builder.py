@@ -13,26 +13,9 @@
 # Done: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
 # Done: if a config value is empty prevent double space in cmd agument
 # Done: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
-# Done: added specific linker exec
-# TODO: use compiler exec if no linker exec is present
-# TODO: multithreaded compiling
-## - main.cpp  Compiling.
-## / utils.cpp Compiling..
-## O success.cpp Done    -> 0 Errors, m warnings
-## X failure.cpp Failed  -> n Errors, m Warnings
-##
-## -- errcodes --
-##
-## -- failure.cpp
-##
-##
-##
-##
-## failure.cpp
-##  gcc / compiler outpur
-##
-## success.cpp
-##  gcc / compiler output
+# Done: add specific linker exec
+# Done: use compiler exec if no linker exec is present
+# Done: multithreaded compiling
 # Done: error and warning coloring in the console
 # Done: if error occurs stop compilation and return 1
 # Done: if error occurs stop linking and return 1
@@ -40,6 +23,11 @@
 # Done: retrive target directories for exe, objects, include and source files
 # Done: support for debug and optimization compilation, compiler flag and libraries
 # Done: support for pre and post script
+# Done: support support for any names profile
+# Done: implicit empty profile if none is specified
+# TODO: refactor out global variables (except constants)
+# TODO: implicit empty configuration if no config file is foun
+# TODO: better setting parsing
 
 import subprocess # execute command on the cmd / bash / whatever
 import os         # get directories file names
@@ -415,6 +403,8 @@ def parse_config_json(profile: str) -> int:
 	settings["args"] = compilers_common_args[compiler_type]
 
 	settings["linker"] = config_file["compiler"]["linker_exe"]
+    if settings["linker"] == "":
+        settings["linker"] = settings["args"]
 
 	# --- Directories settings ---
 	# Where is the project
