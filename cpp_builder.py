@@ -484,8 +484,8 @@ def parse_config_json(profile: str) -> int:
 	# del ldname
 
 	# --- Compiler an Linker arguments ---
-	settings["cargs"] = get_value(profile, "compiler_args", DEFAULT_PROFILE["compiler_args"])
-	settings["largs"] = get_value(profile, "linker_args", DEFAULT_PROFILE["linker_args"])
+	settings["cargs"] = get_value(profile_settings, "compiler_args", DEFAULT_PROFILE["compiler_args"])
+	settings["largs"] = get_value(profile_settings, "linker_args", DEFAULT_PROFILE["linker_args"])
 
 	# fix for empty args
 	if settings["cargs"]:
