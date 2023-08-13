@@ -514,10 +514,9 @@ def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> b
 
 	# have to do this cus cannot append([]) or extend(str)
 	if isinstance(env, str):
-		includes_directories.append(env)
-	else:
-		includes_directories.extend(env)
+		env = [env]
 
+	includes_directories.extend(env)
 	curr = filename
 
 	for dir in includes_directories:
@@ -530,14 +529,15 @@ def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> b
 		if old_hashes[curr] != new_hashes[curr]:
 			return True
 	else:
-		new_hashes[curr] = (make_new_file_hash(curr))
+		new_hashes[curr] = make_new_file_hash(curr)
 		return True
 
 	# the file is known but not modified
 	# check the includes
 
 	for inc in get_includes(curr):
-		add_incl = parse_file_path(curr)[0] + "/"
+		add_incl = [parse_file_path(curr)[0]]
+		add_incl.extend(env)
 
 		if to_recompile(inc, old_hashes, new_hashes, add_incl):
 			return True
@@ -566,7 +566,7 @@ def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
 
 	for file in old_hashes: # loop trough every file of each directory
 
-		new_hashes.append(make_new_file_hash(file))
+		new_hashes[file] = make_new_file_hash(file)
 
 
 def load_old_hashes() -> dict[str, str]:
@@ -612,7 +612,7 @@ def save_new_hashes(new_hashes: dict) -> None:
 	Write all the hashes on files_hash.txt
 	"""
 
-	with open("files_hash.txt", "w") as f:
+	with open(HASH_FILENAME, "w") as f:
 		for i in new_hashes.keys():
 			f.write(i + ":")
 			f.write(new_hashes[i] + "\n")
@@ -800,7 +800,7 @@ def main():
 
 	new_hashes: dict = {}
 	# obtain new hashes
-	calculate_new_hashes(new_hashes, old_hashes)
+	calculate_new_hashes(old_hashes, new_hashes)
 
 	# get the file needed to compile
 	to_compile = get_to_compile(settings["source_files"], old_hashes, new_hashes, settings["raw_includes"])
