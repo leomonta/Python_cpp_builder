@@ -782,8 +782,14 @@ def main():
 	# TODO: progress spinner here
 	if "pre" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
-		result = {}
-		exe_command(f'./{settings["scripts"]["pre"]}', result)
+		nm = settings["scripts"]["pre"]
+		result = {
+			"result": COMPILATION_STATUS_COMPILING,
+			"name": nm,
+			"output": "",
+			"command": ""
+		}
+		exe_command(f'./{nm}', result)
 		print(get_compilation_status(result))
 
 	# create file if it does not exist
@@ -818,8 +824,14 @@ def main():
 
 	if "post" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
-		result = {}
-		exe_command(f'./{settings["scripts"]["post"]}', result)
+		nm = settings["scripts"]["post"]
+		result = {
+			"result": COMPILATION_STATUS_COMPILING,
+			"name": nm,
+			"output": "",
+			"command": ""
+		}
+		exe_command(f'./{nm}', result)
 		print(get_compilation_status(result))
 
 	# do not overwrite the old hashes
