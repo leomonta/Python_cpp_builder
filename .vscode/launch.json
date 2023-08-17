@@ -7,9 +7,9 @@
 		{
 			"name": "py compiler",
 			"type": "python",
-			"cwd": "/home/leonard/workspace/cpp/myGalaga/",
+			"cwd": "/home/leonard/workspace/st/",
 			"request": "launch",
-			"args": ["-a", "-p", "analyzer"],
+			"args": ["-a", "-p", "release"],
 			"program": "/home/leonard/workspace/python/Python_cpp_builder/cpp_builder.py",
 			"console": "integratedTerminal",
 			"justMyCode": true

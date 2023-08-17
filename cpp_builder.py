@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-# Building tool for cpp and hpp files
+# Building tool for compiling projects source files (maily c/c++)
 # @Author Leonardo Montagner https://github.com/leomonta/Python_cpp_builder
-#
-# Build only the modified files on a cpp project (or relative includes headers)
-# Link and compile using the appropriate library and include path
-# Print out error and warning messages
-# add the args for the link and the compile process
 #
 # Done: compile and link files
 # Done: check for newer version of source files
@@ -25,7 +20,7 @@
 # Done: support for pre and post script
 # Done: support support for any names profile
 # Done: implicit empty profile if none is specified
-# TODO: refactor out global variables (except constants)
+# Done: refactor out global variables (except constants)
 # TODO: implicit empty configuration if no config file is foun
 # TODO: better setting parsing
 
@@ -132,7 +127,7 @@ class COLS:
 
 
 PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
-PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Compiling", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
+PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
 
 
 def get_value(dict: any, key: str, val="") -> dict | str:
@@ -168,6 +163,61 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	return prefix + COLS.FG_LIGHT_BLACK + name + suffix + COLS.RESET
 
 
+def print_progress(statuses: list[dict]) -> None:
+	"""
+	Wait for the given process status be completed and prints its status in the meantime
+	Returns when all the processes are done or failed
+	"""
+
+	GO_UP = "\x1b[1A"
+	CLEAR_LINE = "\x1b[2K"
+
+	# Animation state
+	tick = 0
+	while True:
+		# How many lines to print at the same time
+		num_lines = len(statuses)
+
+		# Check if every process is done
+		all_done = True
+		for item in statuses:
+
+			print(get_compilation_status(item, tick))
+			if item["result"] == 0:
+				# If someone is still compiling keep looping
+				all_done = False
+
+		if all_done:
+			break
+
+		# Go up 1 line at the time and clear it
+		for i in range(num_lines):
+			print(GO_UP, end=CLEAR_LINE)
+
+		# how quickly to refresh the printing
+		time.sleep(0.15)
+		tick += 1
+
+
+def print_report(statuses: list[dict]) -> None:
+	"""
+	Prints the report for every status there is in statuses
+	"""
+
+	for item in statuses:
+		cmd = item["command"]
+		name = item["name"].ljust(20)[:20]
+		print(f" {name}{COLS.FG_LIGHT_BLACK} {cmd}{COLS.RESET}\n")
+
+		# print stdout and stderr only if there is something to print
+
+		if item["output"] != "":
+			print(COLS.FG_LIGHT_BLACK, "    out", COLS.RESET, ": ", item["output"], sep="")
+
+		if item["errors"] != "":
+			print(COLS.FG_LIGHT_BLACK, "    err", COLS.RESET, ": ", item["errors"], sep="")
+
+
 def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 	"""
 	calls compile()
@@ -179,7 +229,7 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 
 	# --- Compiling ---
 
-	print(COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
+	print("\n", COLS.FG_GREEN, " --- Compiling ---", COLS.RESET)
 
 	# where the status of the different compilations is stored
 	compilations: list[dict] = []
@@ -187,47 +237,18 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 	# and check for errors
 	compile(compilation_targets, settings, compilations)
 
-	GO_UP = "\x1b[1A"
-	CLEAR_LINE = "\x1b[2K"
-
-	# time basically
-	tick = 0
-	while True:
-		num_lines = len(compilations)
-
-		all_done = True
-		for item in compilations:
-
-			print(get_compilation_status(item, tick))
-			if item["result"] == 0: # If someone is still compiling
-				all_done = False
-
-		if all_done:
-			break
-
-		# i have to go up one by one to clear evey line
-		for i in range(num_lines):
-			print(GO_UP, end=CLEAR_LINE)
-
-		# how quickly to refresh the printing
-		time.sleep(0.15)
-		tick += 1
-
+	print_progress(compilations)
+	print("")
+	print_report(compilations)
+ 
 	compilation_failed: bool = False
 
 	for item in compilations:
 		if item["result"] == COMPILATION_STATUS_FAILED: # Failure
 			compilation_failed = True
 
-	print("\n")
 
 	# all compilations done, linking
-	for item in compilations:
-		cmd = item["command"]
-		name = item["name"].ljust(20)[:20]
-		print(f" {name}{COLS.FG_LIGHT_BLACK} {cmd}{COLS.RESET}")
-		print(item["output"], "\n")
-
 	if compilation_failed:
 		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
 		sys.exit(2)
@@ -237,25 +258,29 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 
 	# --- Linking ---
 
-	print(COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
+	print("\n", COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
 
 	link_status = {
 	    "result": COMPILATION_STATUS_COMPILING,
 	    "name": "",
 	    "output": "",
+	    "errors": "",
 	    "command": ""
 	}
-	if not link(compilation_targets, settings, link_status):
+
+	# Link starts a thread, no need to check anything from him
+	link(compilation_targets, settings, link_status)
+
+	print_progress([link_status])
+
+	if link_status["result"] == COMPILATION_STATUS_FAILED:
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
 		sys.exit(3)
 
-	print(get_compilation_status(link_status))
-	print("\n")
+	print("")
 
-	cmd = link_status["command"]
-	nm = link_status["name"].ljust(20)[:20]
-	print(f" {nm}{COLS.FG_LIGHT_BLACK}: {cmd}{COLS.RESET}")
-	print(link_status["output"], "\n")
+	# print
+	print_report([link_status])
 
 
 def get_profile(args: list[str]) -> str:
@@ -313,7 +338,7 @@ def exe_command(command: str, status: dict) -> int:
 	execute the given command, set the ouput and return code to the correct structure
 	"""
 
-	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, universal_newlines=True)
+	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
 
 	out, err = stream.communicate() # execute the command and get the result
 
@@ -321,7 +346,8 @@ def exe_command(command: str, status: dict) -> int:
 	if stream.returncode != 0: # the actual program return code, 0 is ok
 		ret = COMPILATION_STATUS_FAILED
 
-	status["output"] = err
+	status["output"] = out
+	status["errors"] = err
 	status["result"] = ret
 
 	return ret
@@ -638,6 +664,7 @@ def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> 
 		    "result": COMPILATION_STATUS_COMPILING,
 		    "name": f"{file[1]}.{file[2]}",
 		    "output": "",
+		    "errors": "",
 		    "command": command
 		}
 		compilations.append(result)
@@ -673,7 +700,7 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	status["name"] = epn
 	status["command"] = command
-	return exe_command(command, status)
+	threading.Thread(target=exe_command, args=(command, status)).start()
 
 
 def create_makefile():
@@ -784,13 +811,16 @@ def main():
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
 		nm = settings["scripts"]["pre"]
 		result = {
-			"result": COMPILATION_STATUS_COMPILING,
-			"name": nm,
-			"output": "",
-			"command": ""
+		    "result": COMPILATION_STATUS_COMPILING,
+		    "name": nm,
+		    "output": "",
+		    "errors": "",
+		    "command": nm
 		}
-		exe_command(f'./{nm}', result)
-		print(get_compilation_status(result))
+		threading.Thread(target=exe_command, args=(f'./{nm}', result)).start()
+		print_progress([result])
+		print("")
+		print_report([result])
 
 	# create file if it does not exist
 	if not os.path.exists(HASH_FILENAME):
@@ -823,16 +853,19 @@ def main():
 	compile_and_command(to_compile, settings)
 
 	if "post" in settings["scripts"]:
-		print(COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
+		print("\n", COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
 		nm = settings["scripts"]["post"]
 		result = {
-			"result": COMPILATION_STATUS_COMPILING,
-			"name": nm,
-			"output": "",
-			"command": ""
+		    "result": COMPILATION_STATUS_COMPILING,
+		    "name": nm,
+		    "output": "",
+		    "errors": "",
+		    "command": nm
 		}
-		exe_command(f'./{nm}', result)
-		print(get_compilation_status(result))
+		threading.Thread(target=exe_command, args=(f'./{nm}', result)).start()
+		print_progress([result])
+		print("")
+		print_report([result])
 
 	# do not overwrite the old hashes
 	if "-a" not in sys.argv:
