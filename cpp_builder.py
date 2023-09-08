@@ -212,10 +212,10 @@ def print_report(statuses: list[dict]) -> None:
 		# print stdout and stderr only if there is something to print
 
 		if item["output"] != "":
-			print(COLS.FG_LIGHT_BLACK, "    out", COLS.RESET, ": ", item["output"], sep="")
+			print(COLS.FG_LIGHT_BLACK, "    out", COLS.RESET, ":\n", item["output"], sep="")
 
 		if item["errors"] != "":
-			print(COLS.FG_LIGHT_BLACK, "    err", COLS.RESET, ": ", item["errors"], sep="")
+			print(COLS.FG_LIGHT_BLACK, "    err", COLS.RESET, ":\n", item["errors"], sep="")
 
 
 def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
@@ -273,14 +273,14 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 
 	print_progress([link_status])
 
-	if link_status["result"] == COMPILATION_STATUS_FAILED:
-		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
-		sys.exit(3)
-
 	print("")
 
 	# print
 	print_report([link_status])
+
+	if link_status["result"] == COMPILATION_STATUS_FAILED:
+		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
+		sys.exit(3)
 
 
 def get_profile(args: list[str]) -> str:
