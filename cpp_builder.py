@@ -212,10 +212,10 @@ def print_report(statuses: list[dict]) -> None:
 		# print stdout and stderr only if there is something to print
 
 		if item["output"] != "":
-			print(COLS.FG_LIGHT_BLACK, "    out", COLS.RESET, ":\n", item["output"], sep="")
+			print(COLS.FG_LIGHT_BLUE, "    out", COLS.RESET, ":\n", item["output"], sep="")
 
 		if item["errors"] != "":
-			print(COLS.FG_LIGHT_BLACK, "    err", COLS.RESET, ":\n", item["errors"], sep="")
+			print(COLS.FG_LIGHT_RED, "    err", COLS.RESET, ":\n", item["errors"], sep="")
 
 
 def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
