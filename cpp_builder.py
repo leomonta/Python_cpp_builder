@@ -24,14 +24,59 @@
 # TODO: implicit empty configuration if no config file is foun
 # TODO: better setting parsing
 
-import subprocess # execute command on the cmd / bash / whatever
-import os         # get directories file names
-import json       # parse cpp_builder_config.json
-import hashlib    # for calculating hashes
+import subprocess  # execute command on the cmd / bash / whatever
+import os  # get directories file names
+import json  # parse cpp_builder_config.json
+import hashlib  # for calculating hashes
 import threading  # for threading, duh
-import time       #time.sleep
-import sys        # for arguments parsing
+import time  # time.sleep
+import sys  # for arguments parsing
 
+
+TEMPLATE = """{
+	"scripts": {
+	},
+	"compiler": {
+		"compiler_style": "gcc",
+		"compiler_exe": "gcc",
+		"linker_exe": "ld"
+	},
+	"directories": {
+		"project_dir": "test",
+		"exe_path_name": "bin/tes",
+		"include_dirs": [
+			"include",
+			"/usr/local/include",
+			"ext"
+		],
+		"source_dirs": [
+			"src"
+		],
+		"temp_dir": "objs"
+	},
+
+	"debug": {
+		"compiler_args": "-g3 -fanalyzer -fsanitize=address -Wall",
+		"linker_args": "-fsanitize=address",
+		"libraries_dirs": [
+		],
+		"libraries_names": [
+			"pthread"
+		]
+
+	},
+
+	"release": {
+		"compiler_args": "-O2",
+		"linker_args": "-s",
+		"libraries_dirs": [
+		],
+		"libraries_names": [
+			"pthread"
+		]
+	}
+}
+"""
 
 CONFIG_FILENAME = "cpp_builder_config.json"
 HASH_FILENAME = "files_hash"
@@ -47,7 +92,9 @@ DEFAULT_PROFILE = {
 
 SPINNERS: list[str] = ["|", "/", "-", "\\"]
 
-SOURCE_FILES_EXTENSIONS: list[str] = ["c", "cpp", "cxx", "c++", "cc", "C", "s", "rs"]
+SOURCE_FILES_EXTENSIONS: list[str] = [
+    "c", "cpp", "cxx", "c++", "cc", "C", "s", "rs"
+]
 
 COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
     {
@@ -86,7 +133,6 @@ COMPILATION_STATUS_FAILED = 2
 
 
 class COLS:
-
 	FG_BLACK = "\033[30m"
 	FG_RED = "\033[31m"
 	FG_GREEN = "\033[32m"
@@ -127,7 +173,9 @@ class COLS:
 
 
 PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
-PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
+PROGRESS_STATUS: list[str] = [
+    f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"
+]
 
 
 def get_value(dict: any, key: str, val="") -> dict | str:
@@ -136,7 +184,7 @@ def get_value(dict: any, key: str, val="") -> dict | str:
 	"""
 	try:
 		return dict[key]
-	except:
+	except Exception:
 		return val
 
 
@@ -150,12 +198,14 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	curr_spinner = SPINNERS[tick % len(SPINNERS)]
 
 	print
-	prefix: str = f" " + PROGRRESS_PREFIXES[item["result"]] + " "
+	prefix: str = " " + PROGRRESS_PREFIXES[item["result"]] + " "
 	suffix: str = " " + PROGRESS_STATUS[item["result"]]
 
-	if item["result"] == 0:                 # Still compiling
+	if item["result"] == 0:  # Still compiling
 		prefix = f" {curr_spinner} "
-		suffix += "." * ((tick % 12) // 4 + 1) # makes the dots progress 1/4 the speed of the spinner
+		suffix += "." * (
+		    (tick % 12) // 4 + 1
+		)  # makes the dots progress 1/4 the speed of the spinner
 
 	# fill the string with spaces until 20 and truncate the string if longer than that
 	name = item["name"].ljust(20)[:20]
@@ -212,10 +262,24 @@ def print_report(statuses: list[dict]) -> None:
 		# print stdout and stderr only if there is something to print
 
 		if item["output"] != "":
-			print(COLS.FG_LIGHT_BLUE, "    out", COLS.RESET, ":\n", item["output"], sep="")
+			print(
+			    COLS.FG_LIGHT_BLUE,
+			    "    out",
+			    COLS.RESET,
+			    ":\n",
+			    item["output"],
+			    sep=""
+			)
 
 		if item["errors"] != "":
-			print(COLS.FG_LIGHT_RED, "    err", COLS.RESET, ":\n", item["errors"], sep="")
+			print(
+			    COLS.FG_LIGHT_RED,
+			    "    err",
+			    COLS.RESET,
+			    ":\n",
+			    item["errors"],
+			    sep=""
+			)
 
 
 def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
@@ -240,17 +304,18 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 	print_progress(compilations)
 	print("")
 	print_report(compilations)
- 
+
 	compilation_failed: bool = False
 
 	for item in compilations:
-		if item["result"] == COMPILATION_STATUS_FAILED: # Failure
+		if item["result"] == COMPILATION_STATUS_FAILED:  # Failure
 			compilation_failed = True
-
 
 	# all compilations done, linking
 	if compilation_failed:
-		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
+		print(
+		    f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---"
+		)
 		sys.exit(2)
 
 	# cleaning prev compilation data
@@ -338,12 +403,17 @@ def exe_command(command: str, status: dict) -> int:
 	execute the given command, set the ouput and return code to the correct structure
 	"""
 
-	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+	stream = subprocess.Popen(
+	    command.split(" "),
+	    stderr=subprocess.PIPE,
+	    stdout=subprocess.PIPE,
+	    universal_newlines=True
+	)
 
-	out, err = stream.communicate() # execute the command and get the result
+	out, err = stream.communicate()  # execute the command and get the result
 
 	ret = COMPILATION_STATUS_DONE
-	if stream.returncode != 0: # the actual program return code, 0 is ok
+	if stream.returncode != 0:  # the actual program return code, 0 is ok
 		ret = COMPILATION_STATUS_FAILED
 
 	status["output"] = out
@@ -360,42 +430,42 @@ def parse_config_json(profile: str) -> int:
 	"""
 
 	settings: dict[str, any] = {
-	                              # name of the compiler and linker executable
+	    # name of the compiler and linker executable
 	    "compiler": "gcc",
 	    "linker": "gcc",
 
-	                              # compiler and linker args
+	    # compiler and linker args
 	    "cargs": "",
 	    "largs": "",
 
-	                              # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
+	    # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
 	    "specifics": {},
 
-	                              # path and name of the final executable
+	    # path and name of the final executable
 	    "exe_path_name": "",
 
-	                              # base directory of the project
+	    # base directory of the project
 	    "project_path": "",
 
-	                              # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+	    # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
 	    "includes": "",
 
-	                              # list of all the includes as they appear in the config file
+	    # list of all the includes as they appear in the config file
 	    "raw_includes": [],
 
-	                              # directory where to leave the compiled object files
+	    # directory where to leave the compiled object files
 	    "objects_path": "",
 
-	                              # directories containing the names of the source directories
+	    # directories containing the names of the source directories
 	    "source_files": [],
 
-	                              # the string composed by the names of the libraries -> "-lpthread -lm ..."
+	    # the string composed by the names of the libraries -> "-lpthread -lm ..."
 	    "libraries_names": "",
 
-	                              # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+	    # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
 	    "libraries_paths": "",
 
-	                              # name of the scripts to execute
+	    # name of the scripts to execute
 	    "scripts": {}
 	}
 
@@ -404,7 +474,11 @@ def parse_config_json(profile: str) -> int:
 	if os.path.isfile(config_filename):
 		config_file = json.load(open(config_filename))
 	else:
-		print(COLS.FG_YELLOW, f"[WARNING]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET)
+		print(
+		    COLS.FG_YELLOW,
+		    f"[WARNING]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found",
+		    COLS.RESET
+		)
 		return dict
 
 	del config_filename
@@ -418,7 +492,9 @@ def parse_config_json(profile: str) -> int:
 
 	compiler_settings = get_value(config_file, "compiler")
 
-	settings["compiler"] = get_value(compiler_settings, "compiler_exe", DEFAULT_COMPILER)
+	settings["compiler"] = get_value(
+	    compiler_settings, "compiler_exe", DEFAULT_COMPILER
+	)
 
 	temp = get_value(compiler_settings, "compiler_style", DEFAULT_COMPILER)
 
@@ -443,7 +519,9 @@ def parse_config_json(profile: str) -> int:
 	del compiler_type
 
 	# if no linker is specified use the compiler executable
-	settings["linker"] = get_value(compiler_settings, "linker_exe", settings["compiler"])
+	settings["linker"] = get_value(
+	    compiler_settings, "linker_exe", settings["compiler"]
+	)
 
 	del compiler_settings
 
@@ -456,10 +534,14 @@ def parse_config_json(profile: str) -> int:
 	directories_settings = get_value(config_file, "directories")
 
 	# base directory for ALL the other directories and files
-	settings["project_path"] = get_value(directories_settings, "project_dir", "./")
+	settings["project_path"] = get_value(
+	    directories_settings, "project_dir", "./"
+	)
 
 	# name of the final executable
-	settings["exe_path_name"] = get_value(directories_settings, "exe_path_name", "a.out")
+	settings["exe_path_name"] = get_value(
+	    directories_settings, "exe_path_name", "a.out"
+	)
 
 	targets: list[str] = []
 
@@ -482,11 +564,14 @@ def parse_config_json(profile: str) -> int:
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in get_value(directories_settings, "include_dirs", ["include"]):
 		settings["raw_includes"].append(Idir)
-		settings["includes"] += " " + settings["specifics"]["include_path"] + Idir
+		settings["includes"
+		        ] += " " + settings["specifics"]["include_path"] + Idir
 
 	del Idir
 
-	settings["objects_path"] = get_value(directories_settings, ["temp_dir"], "obj")
+	settings["objects_path"] = get_value(
+	    directories_settings, ["temp_dir"], "obj"
+	)
 
 	# ----- Profiles -----
 
@@ -496,22 +581,31 @@ def parse_config_json(profile: str) -> int:
 
 	# --- Libs ---
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	for lname in get_value(profile_settings, "libraries_names", DEFAULT_PROFILE["libraries_names"]):
-		settings["libraries_names"] += " " + settings["specifics"]["library_name"] + lname
+	for lname in get_value(
+	    profile_settings, "libraries_names", DEFAULT_PROFILE["libraries_names"]
+	):
+		settings["libraries_names"
+		        ] += " " + settings["specifics"]["library_name"] + lname
 
 	# cant be sure if it has been created
 	# del lname
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
-	for ldname in get_value(profile_settings, "libraries_dirs", DEFAULT_PROFILE["libraries_dirs"]):
+	for ldname in get_value(
+	    profile_settings, "libraries_dirs", DEFAULT_PROFILE["libraries_dirs"]
+	):
 		settings["libraries_paths"] += " " + settings["specifics"]["library_path"] + ldname
 
 	# cant be sure if it has been created
 	# del ldname
 
 	# --- Compiler an Linker arguments ---
-	settings["cargs"] = get_value(profile_settings, "compiler_args", DEFAULT_PROFILE["compiler_args"])
-	settings["largs"] = get_value(profile_settings, "linker_args", DEFAULT_PROFILE["linker_args"])
+	settings["cargs"] = get_value(
+	    profile_settings, "compiler_args", DEFAULT_PROFILE["compiler_args"]
+	)
+	settings["largs"] = get_value(
+	    profile_settings, "linker_args", DEFAULT_PROFILE["linker_args"]
+	)
 
 	# fix for empty args
 	if settings["cargs"]:
@@ -523,7 +617,9 @@ def parse_config_json(profile: str) -> int:
 	return settings
 
 
-def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> bool:
+def to_recompile(
+    filename: str, old_hashes: dict, new_hashes: dict, env=""
+) -> bool:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
@@ -582,7 +678,7 @@ def make_new_file_hash(file: str) -> str:
 	with open(file, "rb") as f:
 		sha1.update(f.read())
 
-	return sha1.hexdigest() # create the new hash
+	return sha1.hexdigest()  # create the new hash
 
 
 def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
@@ -590,7 +686,7 @@ def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
 	Calculate the hashes for all the source files
 	"""
 
-	for file in old_hashes: # loop trough every file of each directory
+	for file in old_hashes:  # loop trough every file of each directory
 
 		new_hashes[file] = make_new_file_hash(file)
 
@@ -616,16 +712,20 @@ def load_old_hashes() -> dict[str, str]:
 	return hashes
 
 
-def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, add_incl: list[str]) -> list[str]:
+def get_to_compile(
+    source_files: list[str], old_hashes: dict, new_hashes: dict,
+    add_incl: list[str]
+) -> list[str]:
 	"""
 	return a list of files and their directories that need to be compiled
 	"""
 
-	to_compile: list[tuple[str, str, str]] = [] # contains directory and filename
+	to_compile: list[tuple[str, str,
+	                       str]] = []  # contains directory and filename
 
 	# checking which file need to be compiled
 	file: str = ""
-	for file in source_files: # loop trough every file of each directory
+	for file in source_files:  # loop trough every file of each directory
 
 		if to_recompile(file, old_hashes, new_hashes, add_incl):
 			to_compile.append(parse_file_path(file))
@@ -644,7 +744,9 @@ def save_new_hashes(new_hashes: dict) -> None:
 			f.write(new_hashes[i] + "\n")
 
 
-def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> None:
+def compile(
+    to_compile: list[str], settings: dict, compilations: list[dict]
+) -> None:
 	"""
 	Calls the compiler with the specified arguments
 	"""
@@ -678,7 +780,7 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	to_link: list[str] = []
 
-	for file in settings["source_files"]: # loop trough every file of each directory
+	for file in settings["source_files"]:  # loop trough every file of each directory
 
 		to_link.append(parse_file_path(file))
 
@@ -759,12 +861,12 @@ def create_makefile():
 
 	make_file += "\nDLink: \n"
 
-	make_file += f"	$(CC) $(DLinkerArgs) -o $(BinName) $(DLibrariesPaths)"
+	make_file += "	$(CC) $(DLinkerArgs) -o $(BinName) $(DLibrariesPaths)"
 
 	for file in to_compile:
 		make_file += f"	$(ObjsDir)/{file[0]}{file[1]}.o"
 
-	make_file += f" $(DLibrariesNames)\n"
+	make_file += " $(DLibrariesNames)\n"
 
 	# Release commands
 
@@ -775,12 +877,12 @@ def create_makefile():
 
 	make_file += "\nRLink: \n"
 
-	make_file += f"	$(CC) $(RLinkerArgs) -o $(BinName) $(RLibrariesPaths)"
+	make_file += "	$(CC) $(RLinkerArgs) -o $(BinName) $(RLibrariesPaths)"
 
 	for file in to_compile:
 		make_file += f" $(ObjsDir)/{file[0]}{file[1]}.o"
 
-	make_file += f" $(RLibrariesNames)\n"
+	make_file += " $(RLibrariesNames)\n"
 
 	make_file += "\nclean:\n"
 	make_file += "	rm -r -f objs/*\n"
@@ -793,9 +895,14 @@ def create_makefile():
 def main():
 
 	# makefile option
-	if "-e" in sys.argv:
-		create_makefile()
-		return
+	# if "-e" in sys.argv:
+	# create_makefile()
+	# return
+
+	if "-gen" in sys.argv:
+		with open("cpp_builder_config.json", "w") as f:
+			f.write(TEMPLATE)
+		sys.exit(0)
 
 	# Release or debug mode
 	compilation_profile = get_profile(sys.argv)
@@ -839,11 +946,16 @@ def main():
 	calculate_new_hashes(old_hashes, new_hashes)
 
 	# get the file needed to compile
-	to_compile = get_to_compile(settings["source_files"], old_hashes, new_hashes, settings["raw_includes"])
+	to_compile = get_to_compile(
+	    settings["source_files"], old_hashes, new_hashes,
+	    settings["raw_includes"]
+	)
 
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
-		print(f"{COLS.FG_YELLOW} --- Compilation and linking skipped due to no new or modified files ---{COLS.RESET}")
+		print(
+		    f"{COLS.FG_YELLOW} --- Compilation and linking skipped due to no new or modified files ---{COLS.RESET}"
+		)
 		return
 
 	if not os.path.exists(settings["objects_path"]):
