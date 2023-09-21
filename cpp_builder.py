@@ -52,7 +52,7 @@ TEMPLATE = """{
 		"source_dirs": [
 			"src"
 		],
-		"temp_dir": "objs"
+		"temp_dir": "obj"
 	},
 
 	"debug": {
@@ -116,14 +116,14 @@ COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
         "library_name": "",
         "force_colors": "",
     }, {
-        "compile_only": "--crate-name",
+        "compile_only": "--emit obj",
         "output_compiler": "-o ",
         "output_linker": "-o ",
-        "object_extension": "o",
+        "object_extension": "rs",
         "include_path": "",
         "library_path": "-L",
         "library_name": "-l",
-        "force_colors": "",
+        "force_colors": "--color=always",
     }
 ]
 
@@ -313,9 +313,7 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 
 	# all compilations done, linking
 	if compilation_failed:
-		print(
-		    f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---"
-		)
+		print(f"\n{COLS.FG_RED} --- Linking skipped due to errors in compilation process! ---")
 		sys.exit(2)
 
 	# cleaning prev compilation data
@@ -423,13 +421,16 @@ def exe_command(command: str, status: dict) -> int:
 	return ret
 
 
-def parse_config_json(profile: str) -> int:
+def parse_config_json(profile: str) -> dict[str, any]:
 	"""
 	Set the global variables by reading the from cpp_builder_config.json
 	the optimization argument decide if debug or release mode
 	"""
 
 	settings: dict[str, any] = {
+
+	    # type of compiler gcc like or rust like generally
+	    "type": "gcc",
 	    # name of the compiler and linker executable
 	    "compiler": "gcc",
 	    "linker": "gcc",
@@ -474,11 +475,7 @@ def parse_config_json(profile: str) -> int:
 	if os.path.isfile(config_filename):
 		config_file = json.load(open(config_filename))
 	else:
-		print(
-		    COLS.FG_YELLOW,
-		    f"[WARNING]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found",
-		    COLS.RESET
-		)
+		print(COLS.FG_YELLOW, f"[WARNING]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET)
 		return dict
 
 	del config_filename
@@ -492,36 +489,30 @@ def parse_config_json(profile: str) -> int:
 
 	compiler_settings = get_value(config_file, "compiler")
 
-	settings["compiler"] = get_value(
-	    compiler_settings, "compiler_exe", DEFAULT_COMPILER
-	)
+	settings["compiler"] = get_value(compiler_settings, "compiler_exe", DEFAULT_COMPILER)
 
-	temp = get_value(compiler_settings, "compiler_style", DEFAULT_COMPILER)
+	settings["type"] = get_value(compiler_settings, "compiler_style", DEFAULT_COMPILER)
 
 	# 0 gcc / clang
 	# 1 msvc
 	# 2 rust
 	compiler_type: int = 0
 
-	if temp == "gcc":
+	if settings["type"] == "gcc":
 		compiler_type = 0
-	elif temp == "clang":
+	elif settings["type"] == "clang":
 		compiler_type = 0
-	elif temp == "msvc":
+	elif settings["type"] == "msvc":
 		compiler_type = 1
-	elif temp == "rustc":
+	elif settings["type"] == "rustc":
 		compiler_type = 2
-
-	del temp
 
 	settings["specifics"] = COMPILER_SPECIFIC_ARGS[compiler_type]
 
 	del compiler_type
 
 	# if no linker is specified use the compiler executable
-	settings["linker"] = get_value(
-	    compiler_settings, "linker_exe", settings["compiler"]
-	)
+	settings["linker"] = get_value(compiler_settings, "linker_exe", settings["compiler"])
 
 	del compiler_settings
 
@@ -564,14 +555,9 @@ def parse_config_json(profile: str) -> int:
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in get_value(directories_settings, "include_dirs", ["include"]):
 		settings["raw_includes"].append(Idir)
-		settings["includes"
-		        ] += " " + settings["specifics"]["include_path"] + Idir
+		settings["includes"] += " " + settings["specifics"]["include_path"] + Idir
 
-	del Idir
-
-	settings["objects_path"] = get_value(
-	    directories_settings, ["temp_dir"], "obj"
-	)
+	settings["objects_path"] = get_value(directories_settings, ["temp_dir"], "obj")
 
 	# ----- Profiles -----
 
@@ -581,11 +567,8 @@ def parse_config_json(profile: str) -> int:
 
 	# --- Libs ---
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	for lname in get_value(
-	    profile_settings, "libraries_names", DEFAULT_PROFILE["libraries_names"]
-	):
-		settings["libraries_names"
-		        ] += " " + settings["specifics"]["library_name"] + lname
+	for lname in get_value(profile_settings, "libraries_names", DEFAULT_PROFILE["libraries_names"]):
+		settings["libraries_names"] += " " + settings["specifics"]["library_name"] + lname
 
 	# cant be sure if it has been created
 	# del lname
@@ -617,9 +600,7 @@ def parse_config_json(profile: str) -> int:
 	return settings
 
 
-def to_recompile(
-    filename: str, old_hashes: dict, new_hashes: dict, env=""
-) -> bool:
+def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> bool:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
@@ -712,10 +693,7 @@ def load_old_hashes() -> dict[str, str]:
 	return hashes
 
 
-def get_to_compile(
-    source_files: list[str], old_hashes: dict, new_hashes: dict,
-    add_incl: list[str]
-) -> list[str]:
+def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, add_incl: list[str]) -> list[str]:
 	"""
 	return a list of files and their directories that need to be compiled
 	"""
@@ -744,9 +722,7 @@ def save_new_hashes(new_hashes: dict) -> None:
 			f.write(new_hashes[i] + "\n")
 
 
-def compile(
-    to_compile: list[str], settings: dict, compilations: list[dict]
-) -> None:
+def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> None:
 	"""
 	Calls the compiler with the specified arguments
 	"""
@@ -946,16 +922,11 @@ def main():
 	calculate_new_hashes(old_hashes, new_hashes)
 
 	# get the file needed to compile
-	to_compile = get_to_compile(
-	    settings["source_files"], old_hashes, new_hashes,
-	    settings["raw_includes"]
-	)
+	to_compile = get_to_compile(settings["source_files"], old_hashes, new_hashes, settings["raw_includes"])
 
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
-		print(
-		    f"{COLS.FG_YELLOW} --- Compilation and linking skipped due to no new or modified files ---{COLS.RESET}"
-		)
+		print(f"{COLS.FG_YELLOW} --- Compilation and linking skipped due to no new or modified files ---{COLS.RESET}")
 		return
 
 	if not os.path.exists(settings["objects_path"]):
