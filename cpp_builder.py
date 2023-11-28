@@ -881,6 +881,9 @@ def main():
 		sys.exit(0)
 
 	# Release or debug mode
+	if "-p" not in sys.argv:
+		print(f"{COLS.FG_RED}You need to specify a profile with '-p'{COLS.RESET}")
+		exit()
 	compilation_profile = get_profile(sys.argv)
 
 	# settings is garanteted to have all of the necessary values
@@ -889,7 +892,6 @@ def main():
 	# script are executed from the project path
 	os.chdir(settings["project_path"])
 
-	# TODO: progress spinner here
 	if "pre" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
 		nm = settings["scripts"]["pre"]
