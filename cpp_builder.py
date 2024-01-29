@@ -23,6 +23,7 @@
 # Done: refactor out global variables (except constants)
 # TODO: implicit empty configuration if no config file is foun
 # TODO: better setting parsing
+# TODO: maximum thread amount
 
 import subprocess  # execute command on the cmd / bash / whatever
 import os  # get directories file names
@@ -93,7 +94,7 @@ DEFAULT_PROFILE = {
 SPINNERS: list[str] = ["|", "/", "-", "\\"]
 
 SOURCE_FILES_EXTENSIONS: list[str] = [
-    "c", "cpp", "cxx", "c++", "cc", "C", "s", "rs"
+    "c", "cpp", "cxx", "c++", "cc", "C", "s"
 ]
 
 COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
@@ -178,6 +179,9 @@ PROGRESS_STATUS: list[str] = [
 ]
 
 
+g_semaphore = threading.Semaphore(12)
+
+
 def get_value(dict: any, key: str, val="") -> dict | str:
 	"""
 	Tries to get the desired value from the dict, if fails returns val
@@ -202,6 +206,7 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	suffix: str = " " + PROGRESS_STATUS[item["result"]]
 
 	if item["result"] == 0:  # Still compiling
+		return ""
 		prefix = f" {curr_spinner} "
 		suffix += "." * (
 		    (tick % 12) // 4 + 1
@@ -210,7 +215,7 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	# fill the string with spaces until 20 and truncate the string if longer than that
 	name = item["name"].ljust(20)[:20]
 
-	return prefix + COLS.FG_LIGHT_BLACK + name + suffix + COLS.RESET
+	return prefix + COLS.FG_LIGHT_BLACK + name + suffix + COLS.RESET + "\n"
 
 
 def print_progress(statuses: list[dict]) -> None:
@@ -232,7 +237,7 @@ def print_progress(statuses: list[dict]) -> None:
 		all_done = True
 		for item in statuses:
 
-			print(get_compilation_status(item, tick))
+			print(get_compilation_status(item, tick), end="")
 			if item["result"] == 0:
 				# If someone is still compiling keep looping
 				all_done = False
@@ -241,8 +246,8 @@ def print_progress(statuses: list[dict]) -> None:
 			break
 
 		# Go up 1 line at the time and clear it
-		for i in range(num_lines):
-			print(GO_UP, end=CLEAR_LINE)
+		#for i in range(num_lines):
+		#	print(GO_UP, end=CLEAR_LINE)
 
 		# how quickly to refresh the printing
 		time.sleep(0.15)
@@ -346,7 +351,7 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 		sys.exit(3)
 
 
-def get_profile(args: list[str]) -> str:
+def parse_profile_name(args: list[str]) -> str:
 	try:
 		return args[args.index("-p") + 1]
 	except IndexError:
@@ -401,6 +406,8 @@ def exe_command(command: str, status: dict) -> int:
 	execute the given command, set the ouput and return code to the correct structure
 	"""
 
+	g_semaphore.acquire()
+
 	stream = subprocess.Popen(
 	    command.split(" "),
 	    stderr=subprocess.PIPE,
@@ -417,6 +424,8 @@ def exe_command(command: str, status: dict) -> int:
 	status["output"] = out
 	status["errors"] = err
 	status["result"] = ret
+
+	g_semaphore.release()
 
 	return ret
 
@@ -608,7 +617,7 @@ def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> b
 	"""
 
 	# collect all of the includes here
-	includes: list[str]
+	includes_directories: list[str]
 
 	# I need to find the actual path of the file
 	# try only the includes dirs given in the config file
@@ -698,15 +707,17 @@ def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, 
 	return a list of files and their directories that need to be compiled
 	"""
 
-	to_compile: list[tuple[str, str,
-	                       str]] = []  # contains directory and filename
+	to_compile: list[tuple[str, str, str]] = []  # contains directory and filename
 
 	# checking which file need to be compiled
 	file: str = ""
 	for file in source_files:  # loop trough every file of each directory
 
+		fname = parse_file_path(file)
+		if fname[2] not in SOURCE_FILES_EXTENSIONS:
+			continue
 		if to_recompile(file, old_hashes, new_hashes, add_incl):
-			to_compile.append(parse_file_path(file))
+			to_compile.append(fname)
 
 	return to_compile
 
@@ -880,11 +891,11 @@ def main():
 			f.write(TEMPLATE)
 		sys.exit(0)
 
-	# Release or debug mode
+	# profile selector
 	if "-p" not in sys.argv:
 		print(f"{COLS.FG_RED}You need to specify a profile with '-p'{COLS.RESET}")
 		exit()
-	compilation_profile = get_profile(sys.argv)
+	compilation_profile = parse_profile_name(sys.argv)
 
 	# settings is garanteted to have all of the necessary values
 	settings = parse_config_json(compilation_profile)
