@@ -25,13 +25,13 @@
 # TODO: better setting parsing
 # TODO: maximum thread amount
 
-import subprocess  # execute command on the cmd / bash / whatever
-import os  # get directories file names
-import json  # parse cpp_builder_config.json
-import hashlib  # for calculating hashes
+import subprocess # execute command on the cmd / bash / whatever
+import os         # get directories file names
+import json       # parse cpp_builder_config.json
+import hashlib    # for calculating hashes
 import threading  # for threading, duh
-import time  # time.sleep
-import sys  # for arguments parsing
+import time       # time.sleep
+import sys        # for arguments parsing
 
 
 TEMPLATE = """{
@@ -85,47 +85,45 @@ HASH_FILENAME = "files_hash"
 DEFAULT_COMPILER = "gcc"
 
 DEFAULT_PROFILE = {
-    "libraries_names": [],
-    "libraries_dirs": [],
-    "compiler_args": "",
-    "linker_args": ""
+ "libraries_names": [],
+ "libraries_dirs": [],
+ "compiler_args": "",
+ "linker_args": ""
 }
 
 SPINNERS: list[str] = ["|", "/", "-", "\\"]
 
-SOURCE_FILES_EXTENSIONS: list[str] = [
-    "c", "cpp", "cxx", "c++", "cc", "C", "s"
-]
+SOURCE_FILES_EXTENSIONS: list[str] = ["c", "cpp", "cxx", "c++", "cc", "C", "s"]
 
 COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
-    {
-        "compile_only": "-c",
-        "output_compiler": "-o ",
-        "output_linker": "-o ",
-        "object_extension": "o",
-        "include_path": "-I",
-        "library_path": "-L",
-        "library_name": "-l",
-        "force_colors": "-fdiagnostics-color=always",
-    }, {
-        "compile_only": "/c",
-        "output_compiler": "/Fo",
-        "output_linker": "/OUT:",
-        "object_extension": "obj",
-        "include_path": "/I",
-        "library_path": "/LIBPATH:",
-        "library_name": "",
-        "force_colors": "",
-    }, {
-        "compile_only": "--emit obj",
-        "output_compiler": "-o ",
-        "output_linker": "-o ",
-        "object_extension": "rs",
-        "include_path": "",
-        "library_path": "-L",
-        "library_name": "-l",
-        "force_colors": "--color=always",
-    }
+ {
+  "compile_only": "-c",
+  "output_compiler": "-o ",
+  "output_linker": "-o ",
+  "object_extension": "o",
+  "include_path": "-I",
+  "library_path": "-L",
+  "library_name": "-l",
+  "force_colors": "-fdiagnostics-color=always",
+ }, {
+  "compile_only": "/c",
+  "output_compiler": "/Fo",
+  "output_linker": "/OUT:",
+  "object_extension": "obj",
+  "include_path": "/I",
+  "library_path": "/LIBPATH:",
+  "library_name": "",
+  "force_colors": "",
+ }, {
+  "compile_only": "--emit obj",
+  "output_compiler": "-o ",
+  "output_linker": "-o ",
+  "object_extension": "rs",
+  "include_path": "",
+  "library_path": "-L",
+  "library_name": "-l",
+  "force_colors": "--color=always",
+ }
 ]
 
 COMPILATION_STATUS_COMPILING = 0
@@ -174,9 +172,7 @@ class COLS:
 
 
 PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
-PROGRESS_STATUS: list[str] = [
-    f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"
-]
+PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
 
 
 def get_value(dict: any, key: str, val="") -> dict | str:
@@ -202,11 +198,9 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	prefix: str = " " + PROGRRESS_PREFIXES[item["result"]] + " "
 	suffix: str = " " + PROGRESS_STATUS[item["result"]]
 
-	if item["result"] == 0:  # Still compiling
+	if item["result"] == 0:                 # Still compiling
 		prefix = f" {curr_spinner} "
-		suffix += "." * (
-		    (tick % 12) // 4 + 1
-		)  # makes the dots progress 1/4 the speed of the spinner
+		suffix += "." * ((tick % 12) // 4 + 1) # makes the dots progress 1/4 the speed of the spinner
 
 	# fill the string with spaces until 20 and truncate the string if longer than that
 	name = item["name"].ljust(20)[:20]
@@ -214,7 +208,7 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	return prefix + COLS.FG_LIGHT_BLACK + name + suffix + COLS.RESET + "\n"
 
 
-def print_progress(statuses: list[dict]) -> None:
+def print_progress(statuses: list[dict], settings: dict) -> None:
 	"""
 	Wait for the given process status be completed and prints its status in the meantime
 	Returns when all the processes are done or failed
@@ -227,14 +221,18 @@ def print_progress(statuses: list[dict]) -> None:
 	tick = 0
 	while True:
 		# How many lines to print at the same time
-		num_lines = len(statuses)
+		num_lines = 0
 
 		# Check if every process is done
 		all_done = True
 		for item in statuses:
 
-			print(get_compilation_status(item, tick), end="")
-			if item["result"] == 0:
+			if settings["printing"]["skip_progress"] == "none":
+				print(get_compilation_status(item, tick), end="")
+			elif settings["printing"]["skip_progress"] == "progress" and item["result"] == COMPILATION_STATUS_DONE:
+				print(get_compilation_status(item, tick), end="")
+				num_lines += 1
+			if item["result"] == COMPILATION_STATUS_COMPILING:
 				# If someone is still compiling keep looping
 				all_done = False
 
@@ -250,12 +248,25 @@ def print_progress(statuses: list[dict]) -> None:
 		tick += 1
 
 
-def print_report(statuses: list[dict]) -> None:
+def print_report(statuses: list[dict], settings: dict) -> None:
 	"""
 	Prints the report for every status there is in statuses
 	"""
 
+	if settings["printing"]["skip_reports"] == "all":
+		return
+
 	for item in statuses:
+
+		if settings["printing"]["skip_reports"] == "empty":
+			if item["output"] == "" and item["errors"] == "":
+				# skip this report
+				continue
+		if settings["printing"]["skip_reports"] == "warn":
+			if "error" not in item["errors"] and "error" not in item["output"]:
+				# skip this report
+				continue
+
 		cmd = item["command"]
 		name = item["name"].ljust(20)[:20]
 		print(f" {name}{COLS.FG_LIGHT_BLACK} {cmd}{COLS.RESET}\n")
@@ -263,24 +274,10 @@ def print_report(statuses: list[dict]) -> None:
 		# print stdout and stderr only if there is something to print
 
 		if item["output"] != "":
-			print(
-			    COLS.FG_LIGHT_BLUE,
-			    "    out",
-			    COLS.RESET,
-			    ":\n",
-			    item["output"],
-			    sep=""
-			)
+			print(COLS.FG_LIGHT_BLUE, "    out", COLS.RESET, ":\n", item["output"], sep="")
 
 		if item["errors"] != "":
-			print(
-			    COLS.FG_LIGHT_RED,
-			    "    err",
-			    COLS.RESET,
-			    ":\n",
-			    item["errors"],
-			    sep=""
-			)
+			print(COLS.FG_LIGHT_RED, "    err", COLS.RESET, ":\n", item["errors"], sep="")
 
 
 def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
@@ -302,14 +299,14 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 	# and check for errors
 	compile(compilation_targets, settings, compilations)
 
-	print_progress(compilations)
+	print_progress(compilations, settings)
 	print("")
-	print_report(compilations)
+	print_report(compilations, settings)
 
 	compilation_failed: bool = False
 
 	for item in compilations:
-		if item["result"] == COMPILATION_STATUS_FAILED:  # Failure
+		if item["result"] == COMPILATION_STATUS_FAILED: # Failure
 			compilation_failed = True
 
 	# all compilations done, linking
@@ -325,22 +322,22 @@ def compile_and_command(compilation_targets: list[str], settings: dict) -> None:
 	print("\n", COLS.FG_GREEN, " --- Linking ---", COLS.RESET)
 
 	link_status = {
-	    "result": COMPILATION_STATUS_COMPILING,
-	    "name": "",
-	    "output": "",
-	    "errors": "",
-	    "command": ""
+	 "result": COMPILATION_STATUS_COMPILING,
+	 "name": "",
+	 "output": "",
+	 "errors": "",
+	 "command": ""
 	}
 
 	# Link starts a thread, no need to check anything from him
 	link(compilation_targets, settings, link_status)
 
-	print_progress([link_status])
+	print_progress([link_status], settings)
 
 	print("")
 
 	# print
-	print_report([link_status])
+	print_report([link_status], settings)
 
 	if link_status["result"] == COMPILATION_STATUS_FAILED:
 		print(f"\n{COLS.FG_RED} --- Errors in linking process! ---")
@@ -415,17 +412,12 @@ def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 
 	sem.acquire()
 
-	stream = subprocess.Popen(
-	    command.split(" "),
-	    stderr=subprocess.PIPE,
-	    stdout=subprocess.PIPE,
-	    universal_newlines=True
-	)
+	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
 
-	out, err = stream.communicate()  # execute the command and get the result
+	out, err = stream.communicate() # execute the command and get the result
 
 	ret = COMPILATION_STATUS_DONE
-	if stream.returncode != 0:  # the actual program return code, 0 is ok
+	if stream.returncode != 0: # the actual program return code, 0 is ok
 		ret = COMPILATION_STATUS_FAILED
 
 	status["output"] = out
@@ -445,55 +437,55 @@ def parse_config_json(profile: str) -> dict[str, any]:
 
 	settings: dict[str, any] = {
 
-	    # type of compiler gcc like or rust like generally
-	    "type": "gcc",
-	    # name of the compiler and linker executable
-	    "compiler": "gcc",
-	    "linker": "gcc",
+	                                          # type of compiler gcc like or rust like generally
+	 "type": "gcc",
+	                                          # name of the compiler and linker executable
+	 "compiler": "gcc",
+	 "linker": "gcc",
 
-	    # compiler and linker args
-	    "cargs": "",
-	    "largs": "",
+	                                          # compiler and linker args
+	 "cargs": "",
+	 "largs": "",
 
-	    # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
-	    "specifics": {},
+	                                          # output, includes, filenames swithces (/Fo -o) for msvc, clang, and gcc
+	 "specifics": {},
 
-	    # path and name of the final executable
-	    "exe_path_name": "",
+	                                          # path and name of the final executable
+	 "exe_path_name": "",
 
-	    # base directory of the project
-	    "project_path": "",
+	                                          # base directory of the project
+	 "project_path": "",
 
-	    # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
-	    "includes": "",
+	                                          # the string composed by the path of the includes -> "-I./include -I./ext/include -I..."
+	 "includes": "",
 
-	    # list of all the includes as they appear in the config file
-	    "raw_includes": [],
+	                                          # list of all the includes as they appear in the config file
+	 "raw_includes": [],
 
-	    # directory where to leave the compiled object files
-	    "objects_path": "",
+	                                          # directory where to leave the compiled object files
+	 "objects_path": "",
 
-	    # directories containing the names of the source directories
-	    "source_files": [],
+	                                          # directories containing the names of the source directories
+	 "source_files": [],
 
-	    # the string composed by the names of the libraries -> "-lpthread -lm ..."
-	    "libraries_names": "",
+	                                          # the string composed by the names of the libraries -> "-lpthread -lm ..."
+	 "libraries_names": "",
 
-	    # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
-	    "libraries_paths": "",
+	                                          # the string composed by the path of the libraries -> "-L./path/to/lib -L..."
+	 "libraries_paths": "",
 
-	    # name of the scripts to execute
-	    "scripts": {},
+	                                          # name of the scripts to execute
+	 "scripts": {},
 
-	    # sempahore to limit the number of concurrent threds that can be executed
-	    "semahpore": threading.Semaphore(12),
+	                                          # sempahore to limit the number of concurrent threds that can be executed
+	 "semaphore": threading.Semaphore(12),
 
-	    # what to skip when printing
-	    "printing": {
-	        "skip_reports": "none",
-	        "skip_progress": "none",
-	        "colors": True
-	    }
+	                                          # what to skip when printing
+	 "printing": {
+	  "skip_reports": "none",
+	  "skip_progress": "none",
+	  "colors": True
+	 }
 	}
 
 	# load and parse the file
@@ -551,14 +543,10 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	directories_settings = get_value(config_file, "directories")
 
 	# base directory for ALL the other directories and files
-	settings["project_path"] = get_value(
-	    directories_settings, "project_dir", "./"
-	)
+	settings["project_path"] = get_value(directories_settings, "project_dir", "./")
 
 	# name of the final executable
-	settings["exe_path_name"] = get_value(
-	    directories_settings, "exe_path_name", "a.out"
-	)
+	settings["exe_path_name"] = get_value(directories_settings, "exe_path_name", "a.out")
 
 	targets: list[str] = []
 
@@ -600,21 +588,15 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	# del lname
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
-	for ldname in get_value(
-	    profile_settings, "libraries_dirs", DEFAULT_PROFILE["libraries_dirs"]
-	):
+	for ldname in get_value(profile_settings, "libraries_dirs", DEFAULT_PROFILE["libraries_dirs"]):
 		settings["libraries_paths"] += " " + settings["specifics"]["library_path"] + ldname
 
 	# cant be sure if it has been created
 	# del ldname
 
 	# --- Compiler an Linker arguments ---
-	settings["cargs"] = get_value(
-	    profile_settings, "compiler_args", DEFAULT_PROFILE["compiler_args"]
-	)
-	settings["largs"] = get_value(
-	    profile_settings, "linker_args", DEFAULT_PROFILE["linker_args"]
-	)
+	settings["cargs"] = get_value(profile_settings, "compiler_args", DEFAULT_PROFILE["compiler_args"])
+	settings["largs"] = get_value(profile_settings, "linker_args", DEFAULT_PROFILE["linker_args"])
 
 	# fix for empty args
 	if settings["cargs"]:
@@ -685,7 +667,7 @@ def make_new_file_hash(file: str) -> str:
 	with open(file, "rb") as f:
 		sha1.update(f.read())
 
-	return sha1.hexdigest()  # create the new hash
+	return sha1.hexdigest() # create the new hash
 
 
 def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
@@ -693,7 +675,7 @@ def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
 	Calculate the hashes for all the source files
 	"""
 
-	for file in old_hashes:  # loop trough every file of each directory
+	for file in old_hashes: # loop trough every file of each directory
 
 		new_hashes[file] = make_new_file_hash(file)
 
@@ -724,11 +706,11 @@ def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, 
 	return a list of files and their directories that need to be compiled
 	"""
 
-	to_compile: list[tuple[str, str, str]] = []  # contains directory and filename
+	to_compile: list[tuple[str, str, str]] = [] # contains directory and filename
 
 	# checking which file need to be compiled
 	file: str = ""
-	for file in source_files:  # loop trough every file of each directory
+	for file in source_files: # loop trough every file of each directory
 
 		fname = parse_file_path(file)
 		if fname[2] not in SOURCE_FILES_EXTENSIONS:
@@ -767,14 +749,14 @@ def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> 
 		command = f'{cexe} {oargs["force_colors"]}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 
 		result = {
-		    "result": COMPILATION_STATUS_COMPILING,
-		    "name": f"{file[1]}.{file[2]}",
-		    "output": "",
-		    "errors": "",
-		    "command": command
+		 "result": COMPILATION_STATUS_COMPILING,
+		 "name": f"{file[1]}.{file[2]}",
+		 "output": "",
+		 "errors": "",
+		 "command": command
 		}
 		compilations.append(result)
-		threading.Thread(target=exe_command, args=(command, result)).start()
+		threading.Thread(target=exe_command, args=(command, result, settings["semaphore"])).start()
 
 
 def link(to_compile: list[str], settings: dict, status: dict) -> None:
@@ -784,7 +766,7 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	to_link: list[str] = []
 
-	for file in settings["source_files"]:  # loop trough every file of each directory
+	for file in settings["source_files"]: # loop trough every file of each directory
 
 		to_link.append(parse_file_path(file))
 
@@ -806,22 +788,22 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	status["name"] = epn
 	status["command"] = command
-	threading.Thread(target=exe_command, args=(command, status)).start()
+	threading.Thread(target=exe_command, args=(command, status, settings["semaphore"])).start()
 
 
 def exe_script(name: str, settings: dict):
 	nm = settings["scripts"][name]
 	result = {
-		"result": COMPILATION_STATUS_COMPILING,
-		"name": nm,
-		"output": "",
-		"errors": "",
-		"command": nm
+	 "result": COMPILATION_STATUS_COMPILING,
+	 "name": nm,
+	 "output": "",
+	 "errors": "",
+	 "command": nm
 	}
-	threading.Thread(target=exe_command, args=(f'./{nm}', result)).start()
-	print_progress([result])
+	threading.Thread(target=exe_command, args=(f'./{nm}', result, settings["semaphore"])).start()
+	print_progress([result], settings)
 	print("")
-	print_report([result])
+	print_report([result], settings)
 
 
 def create_makefile():
@@ -937,7 +919,7 @@ def main():
 	settings = parse_config_json(compilation_profile)
 
 	if "-n" in sys.argv:
-		settings["num_threads"] = parse_num_threads(sys.argv)
+		settings["semaphore"] = threading.Sempahore(parse_num_threads(sys.argv))
 
 	# printing options
 
@@ -950,7 +932,7 @@ def main():
 
 	if "--skip-progress" in sys.argv:
 		settings["printing"]["skip_progress"] = "progress"
-	elif "--skip-progress" in sys.argv:
+	elif "--skip-statuses" in sys.argv:
 		settings["printing"]["skip_progress"] = "statuses"
 
 	if "--no-colors" in sys.argv:
