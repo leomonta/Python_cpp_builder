@@ -105,6 +105,7 @@ COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
   "library_path": "-L",
   "library_name": "-l",
   "force_colors": "-fdiagnostics-color=always",
+  "no_colors": "-fdiagnostics-color=always",
  }, {
   "compile_only": "/c",
   "output_compiler": "/Fo",
@@ -170,6 +171,53 @@ class COLS:
 
 	RESET = "\033[0m"
 
+	def erase_all():
+
+		COLS.FG_BLACK = ""
+		COLS.FG_RED = ""
+		COLS.FG_GREEN = ""
+		COLS.FG_YELLOW = ""
+		COLS.FG_BLUE = ""
+		COLS.FG_MAGENTA = ""
+		COLS.FG_CYAN = ""
+		COLS.FG_WHITE = ""
+
+		COLS.BG_BLACK = ""
+		COLS.BG_RED = ""
+		COLS.BG_GREEN = ""
+		COLS.BG_YELLOW = ""
+		COLS.BG_BLUE = ""
+		COLS.BG_MAGENTA = ""
+		COLS.BG_CYAN = ""
+		COLS.BG_WHITE = ""
+
+		COLS.FG_LIGHT_BLACK = ""
+		COLS.FG_LIGHT_RED = ""
+		COLS.FG_LIGHT_GREEN = ""
+		COLS.FG_LIGHT_YELLOW = ""
+		COLS.FG_LIGHT_BLUE = ""
+		COLS.FG_LIGHT_MAGENTA = ""
+		COLS.FG_LIGHT_CYAN = ""
+		COLS.FG_LIGHT_WHITE = ""
+
+		COLS.BG_LIGHT_BLACK = ""
+		COLS.BG_LIGHT_RED = ""
+		COLS.BG_LIGHT_GREEN = ""
+		COLS.BG_LIGHT_YELLOW = ""
+		COLS.BG_LIGHT_BLUE = ""
+		COLS.BG_LIGHT_MAGENTA = ""
+		COLS.BG_LIGHT_CYAN = ""
+		COLS.BG_LIGHT_WHITE = ""
+
+		COLS.RESET = ""
+
+		global PROGRESS_STATUS
+		PROGRESS_STATUS = ["Processing", "Done", "Failed"]
+
+
+PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
+PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
+
 
 PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
 PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
@@ -229,6 +277,7 @@ def print_progress(statuses: list[dict], settings: dict) -> None:
 
 			if settings["printing"]["skip_progress"] == "none":
 				print(get_compilation_status(item, tick), end="")
+				num_lines += 1
 			elif settings["printing"]["skip_progress"] == "progress" and item["result"] == COMPILATION_STATUS_DONE:
 				print(get_compilation_status(item, tick), end="")
 				num_lines += 1
@@ -742,11 +791,12 @@ def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> 
 	cargs = settings["cargs"]
 	obj_dir = settings["objects_path"]
 	oargs = settings["specifics"]
+	colors = oargs["force_colors"] if settings["printing"]["colors"] else oargs["no_colors"]
 
 	for file in to_compile:
 		obj_name: str = "".join(file[0].split("/"))
 
-		command = f'{cexe} {oargs["force_colors"]}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
+		command = f'{cexe} {colors}{cargs}{includes} {oargs["compile_only"]} {oargs["output_compiler"]}{obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]} {file[0]}/{file[1]}.{file[2]}'
 
 		result = {
 		 "result": COMPILATION_STATUS_COMPILING,
@@ -919,7 +969,7 @@ def main():
 	settings = parse_config_json(compilation_profile)
 
 	if "-n" in sys.argv:
-		settings["semaphore"] = threading.Sempahore(parse_num_threads(sys.argv))
+		settings["semaphore"] = threading.Semaphore(parse_num_threads(sys.argv))
 
 	# printing options
 
@@ -936,7 +986,8 @@ def main():
 		settings["printing"]["skip_progress"] = "statuses"
 
 	if "--no-colors" in sys.argv:
-		settings["printing"]["colors"] = True
+		COLS.erase_all()
+		settings["printing"]["colors"] = False
 
 	# script are executed from the project path
 	os.chdir(settings["project_path"])

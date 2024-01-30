@@ -60,7 +60,7 @@ jkjk
 
 Yes they are, but not immediatly
 
-When checking if a file has been modified or not the search stops at the first one that has been, in fact modified.
+When checking if a file has been modified or not the search stops at the first one that has been, in fact, modified.
 This means that when `files_hash.txt` is empty, or simply a minimally complex amount of headers have been added, many calls to the builder are needed to reach the 'top' of the include chain
 
 This is fixable but I'm probably not going to since it's not that big of a problem
@@ -79,9 +79,25 @@ As of now it misses compatibility for
 These are all of the options that can be passed to the builder
 
 ```
-	-a              rebuild the entire project
-	-p profile name	utilize the given profile specifies in the config file
-	-e              do not compile and export the cpp_builder_config as a Makefile
+
+general options
+
+	-a                    rebuild the entire project
+	-p profile-name       utilize the given profile specifies in the config file
+	-e                    do not compile and export the `cpp_builder_config` as a Makefile
+	-gen                  writes in the current directory an empty `cpp_builder_config.json` file
+	-n num-of-threads     number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
+
+printing options
+
+	--skip-empty-reports  do not show reports that are empty
+	--skip-warn-reports   do not show reports that contain only warnings
+	--skip-all-reports    do not show reports
+
+	--skip-progress       do not show the animations for compiling units
+	--skip-statuses       do not show any status for compiling / done / failed compilations
+
+	--no-colors           do not use colors for the output, same for compiler reports
 ```
 
 ## the cpp_builder_config.json structure
@@ -108,7 +124,7 @@ These are all of the options that can be passed to the builder
 		"source_dirs": [
 			"directories where to search source files"
 		],
-		"temp_dir": "name of the temporary directory where to put object files"
+		"temp_dir": "name of the directory where to put object files"
 	},
 
 	"profile name": {
