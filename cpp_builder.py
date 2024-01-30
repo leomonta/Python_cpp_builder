@@ -21,9 +21,9 @@
 # Done: support support for any names profile
 # Done: implicit empty profile if none is specified
 # Done: refactor out global variables (except constants)
+# Done: maximum thread amount
 # TODO: implicit empty configuration if no config file is foun
 # TODO: better setting parsing
-# TODO: maximum thread amount
 
 import subprocess # execute command on the cmd / bash / whatever
 import os         # get directories file names
@@ -219,10 +219,6 @@ PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
 PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
 
 
-PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
-PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
-
-
 def get_value(dict: any, key: str, val="") -> dict | str:
 	"""
 	Tries to get the desired value from the dict, if fails returns val
@@ -312,7 +308,7 @@ def print_report(statuses: list[dict], settings: dict) -> None:
 				# skip this report
 				continue
 		if settings["printing"]["skip_reports"] == "warn":
-			if "error" not in item["errors"] and "error" not in item["output"]:
+			if item["result"] != COMPILATION_STATUS_FAILED:
 				# skip this report
 				continue
 
@@ -485,9 +481,9 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	"""
 
 	settings: dict[str, any] = {
-
 	                                          # type of compiler gcc like or rust like generally
 	 "type": "gcc",
+
 	                                          # name of the compiler and linker executable
 	 "compiler": "gcc",
 	 "linker": "gcc",
@@ -857,88 +853,98 @@ def exe_script(name: str, settings: dict):
 	print_report([result], settings)
 
 
+def get_all_profiles():
+
+	config_filename = "cpp_builder_config.json"
+	if os.path.isfile(config_filename):
+		config_file = json.load(open(config_filename))
+	else:
+		print(COLS.FG_YELLOW, f"[WARNING]{COLS.FG_LIGHT_RED} Config file \"{config_filename}\" not found", COLS.RESET)
+		return dict
+
+	profiles: list[str] = []
+
+	for k in config_file:
+		if k not in ["scripts", "compiler", "directories"]:
+			profiles.append(k)
+
+	return profiles
+
+
 def create_makefile():
 
-	# TODO: use all possible profiles in the makefile
+	profiles = get_all_profiles()
+
+	if len(profiles) == 0:
+		print(f"{COLS.FG_RED}At least one profile is needed in the config_file, but none found{COLS.RESET}")
+
 	# first debug options
-	parse_config_json("empty")
+	settings = parse_config_json(profiles[0])
 	make_file = ""
 
 	# variables
 
-	make_file += f'CC={compilation_variables["compiler_exec"]}\n'
-	make_file += f'BinName={compilation_variables["exe_path"]}/{compilation_variables["exe_name"]}\n'
-	make_file += f'ObjsDir={compilation_variables["objects_path"]}\n'
+	make_file += f'CC={settings["compiler"]}\n'
+	make_file += f'BinName={settings["exe_path_name"]}\n'
+	make_file += f'ObjsDir={settings["objects_path"]}\n'
+	make_file += f'Includes={settings["includes"]}\n'
 
-	make_file += "\n# Debug variables\n"
-	make_file += f'DCompilerArgs={compilation_variables["compiler_args"]}\n'
-	make_file += f'DLinkerArgs={compilation_variables["linker_args"]}\n'
-	make_file += f'DLibrariesPaths={compilation_variables["libraries_paths"]}\n'
-	make_file += f'DLibrariesNames={compilation_variables["libraries_names"]}\n'
-
-	# first debug options
-	parse_config_json(True)
-
-	make_file += "\n# Release variables\n"
-	make_file += f'RCompilerArgs={compilation_variables["compiler_args"]}\n'
-	make_file += f'RLinkerArgs={compilation_variables["linker_args"]}\n'
-	make_file += f'RLibrariesPaths={compilation_variables["libraries_paths"]}\n'
-	make_file += f'RLibrariesNames={compilation_variables["libraries_names"]}\n'
-
-	make_file += "\n# includes\n"
-	make_file += f'Includes={compilation_variables["includes_paths"]}\n'
-
-	make_file += "\n\n"
+	make_file += "\n"
 
 	# targets
-
-	os.chdir(compilation_variables["project_path"])
+	os.chdir(settings["project_path"])
 
 	# obtain new hashes
-	calculate_new_hashes()
+	hashes: dict = {}
+
+	calculate_new_hashes({}, hashes)
 
 	# get the file needed to compile
-	to_compile = get_to_compile()
+	to_compile = get_to_compile(settings["source_files"], {}, hashes, settings["raw_includes"])
 
-	make_file += "debug: DCompile DLink\n\n"
-
-	make_file += "release: RCompile RLink\n\n"
-
-	# Debug commands
-
-	make_file += "\nDCompile: \n"
-
+	make_file += 'SOURCES = '
 	for file in to_compile:
-		make_file += f"	$(CC) $(DCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n"
+		make_file += f'{file[0]}/{file[1]}.{file[2]} '
 
-	make_file += "\nDLink: \n"
-
-	make_file += "	$(CC) $(DLinkerArgs) -o $(BinName) $(DLibrariesPaths)"
-
+	make_file += '\nOBJS = '
 	for file in to_compile:
-		make_file += f"	$(ObjsDir)/{file[0]}{file[1]}.o"
+		make_file += f'{file[0]}{file[1]}.o '
 
-	make_file += " $(DLibrariesNames)\n"
+	for prof in profiles:
 
-	# Release commands
+		settings = parse_config_json(prof)
 
-	make_file += "\nRCompile: \n"
+		# Profiles
+		make_file += f'\n# --- {prof} variables ---\n\n'
+		make_file += f'{prof}-CompilerArgs={settings["cargs"]}\n'
+		make_file += f'{prof}-LinkerArgs={settings["largs"]}\n'
+		make_file += f'{prof}-LibrariesPaths={settings["libraries_paths"]}\n'
+		make_file += f'{prof}-LibrariesNames={settings["libraries_names"]}\n'
 
-	for file in to_compile:
-		make_file += f"	$(CC) $(RCompilerArgs) $(Includes) -c -o $(ObjsDir)/{file[0]}{file[1]}.o {file[0]}/{file[1]}.{file[2]}\n"
+		make_file += "\n\n"
 
-	make_file += "\nRLink: \n"
+		make_file += f"{prof}: {prof}-Link\n"
 
-	make_file += "	$(CC) $(RLinkerArgs) -o $(BinName) $(RLibrariesPaths)"
+		# Debug commands
 
-	for file in to_compile:
-		make_file += f" $(ObjsDir)/{file[0]}{file[1]}.o"
+		make_file += f"\n{prof}-Compile: $(SOURCES)\n"
 
-	make_file += " $(RLibrariesNames)\n"
+		make_file += f"	$(CC) $({prof}-CompilerArgs) $(Includes) -c -o $(ObjsDir)/$(subst /,,$(basename $(SOURCES))).o $(SOURCES)\n"
+
+		make_file += f"\n{prof}-Link: {prof}-Compile\n"
+
+		make_file += f"	$(CC) $({prof}-LinkerArgs) -o $(BinName) $({prof}-LibrariesPaths)"
+
+		for file in to_compile:
+			make_file += f"	$(ObjsDir)/{file[0]}{file[1]}.o"
+
+		make_file += " $({prof}-LibrariesNames)\n"
+
+		make_file += "\n\n"
 
 	make_file += "\nclean:\n"
-	make_file += "	rm -r -f objs/*\n"
-	make_file += "	rm -r -f $(BinName)\n"
+	make_file += "	rm -r $(ObjsDir)/*\n"
+	make_file += "	rm -r $(BinName)\n"
 
 	with open("Makefile", "w+") as mf:
 		mf.write(make_file)
@@ -947,9 +953,9 @@ def create_makefile():
 def main():
 
 	# makefile option
-	# if "-e" in sys.argv:
-	# create_makefile()
-	# return
+	if "-e" in sys.argv:
+		create_makefile()
+	sys.exit(0)
 
 	# ---- cli args parsing ----
 
@@ -976,9 +982,9 @@ def main():
 
 	if "--skip-empty-reports" in sys.argv:
 		settings["printing"]["skip_reports"] = "empty"
-	elif "--skip-warn-reports" in sys.argv:
+	if "--skip-warn-reports" in sys.argv:
 		settings["printing"]["skip_reports"] = "warn"
-	elif "--skip-all-reports" in sys.argv:
+	if "--skip-all-reports" in sys.argv:
 		settings["printing"]["skip_reports"] = "all"
 
 	if "--skip-progress" in sys.argv:
