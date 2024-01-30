@@ -2,27 +2,26 @@
 
 ## Why:
 
-When I started making stuff in c/c++ without an IDE (that compiles for you, VSCode does not) I encountered Makefile, and honestly, I hate it
+When I started making stuff in c/c++ without an IDE (that compiles for you, VSCode does not) I encountered Makefile, and honestly, I hated it.
 There are some cool stuff that you can do with it but is too complex and with way too many hidden and implicit rules that are just stupid (e.g. `.c.o`)
 
 So my brain had the brillian idea of making an entire python script to compile projects the way i organize them. Cuz it was "Easier and Fun, Trust me"
 
-I keep my files organized in specific directories, I keep the source files in `src/`, my includes in `include/`, object files (`.o`) in `obj/` and so on, Makefile make this hard for some reason (most probably I'm just too stupid / lazy to do it but nevermind).
-But not always, there are some variations from project to project, e.g. some times i use the `ext/` folder to keep libraries source files and includes, and often i use different libraries while linking
+I keep my files organized in specific directories, Source files in `src/`, includes in `include/`, object files (`.o`) in `obj/` and so on, Makefile make this hard for some reason (most probably I'm just too stupid / lazy to do it but nevermind).
+Sometimes there are some variations from project to project, e.g. some times i use the `ext/` folder to keep libraries source files and includes, and often I use different libraries while linking
 
 Also, I would like to use this same framework for other OSes (Windows), and compilers (Rustc, clang)
 
 ## Modus Operandis: (?)
 
 A config file (`cpp_builder_config.json`) is always needed, even though i might add a simple empty config file in the builder if none is found,
-The config file is a json mainly because the key helps explain the what the required info is, and is easily edited by people, + it's widely used for everything
+The config file is a json because: the key helps explain the what the required info is, it is easily edited by people, and it's widely used for everything
 
 The builder only compiles files that have been modifies from the previous times it was called, to know which files have been modified it computes an hash of the file itself and compares it to a saved copy of the previous compilation (the hashes are stored unceremoniously in `files_hash.txt`)
-This check is also performed recursively for every `#include` the file contain, only the `#include` with the name enclosed int double quptes `"` are checked, since those are usually the one that the programmer writes
+This check is also performed recursively for every `#include` the file contain, only the `#include` with the name enclosed int double quptes `"` are checked, since those are usually the one that the programmer writes.
 If an header file has been modified all of the source files that include that header will be recompilated
 
-Different profiles are supported, the are just free floating keys, that can be used via `-p profileName`, in the config file; if no profile is specified an empty profile, with all of the param empty, is used
-Sometimes all of the params empty is fine
+Different profiles are supported, they are just free floating keys in the root of the config file, that can be used via `-p profileName`.
 
 ### Process
 
@@ -35,7 +34,7 @@ Parse the config files and saves the useful data in an internal dict and the req
 
 If the `pre` key is present in `scripts` execute the given script
 
-Lists of of the files that are in the `source_dirs` and select only the one that can be compiled (e.g. .c, .cpp. .h) and have been modified
+Lists all of the files that are in the `source_dirs` and select only the one that can be compiled (e.g. .c, .cpp. .h) and have been modified
 > Early exit if no files to compile are found
 
 Create a thread that calls the given compiler with all of the correct arguments for each file that needs to be compiled

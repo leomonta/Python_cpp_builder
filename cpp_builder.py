@@ -620,7 +620,7 @@ def parse_config_json(profile: str) -> dict[str, any]:
 		settings["raw_includes"].append(Idir)
 		settings["includes"] += " " + settings["specifics"]["include_path"] + Idir
 
-	settings["objects_path"] = get_value(directories_settings, ["temp_dir"], "obj")
+	settings["objects_path"] = get_value(directories_settings, "temp_dir", "obj")
 
 	# ----- Profiles -----
 
@@ -838,6 +838,7 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	status["name"] = epn
 	status["command"] = command
+	os.makedirs(os.path.dirname(epn), exist_ok=True)
 	threading.Thread(target=exe_command, args=(command, status, settings["semaphore"])).start()
 
 
