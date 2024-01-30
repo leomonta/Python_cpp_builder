@@ -179,9 +179,6 @@ PROGRESS_STATUS: list[str] = [
 ]
 
 
-g_semaphore = threading.Semaphore(12)
-
-
 def get_value(dict: any, key: str, val="") -> dict | str:
 	"""
 	Tries to get the desired value from the dict, if fails returns val
@@ -206,7 +203,6 @@ def get_compilation_status(item: dict[str], tick: int = 0) -> str:
 	suffix: str = " " + PROGRESS_STATUS[item["result"]]
 
 	if item["result"] == 0:  # Still compiling
-		return ""
 		prefix = f" {curr_spinner} "
 		suffix += "." * (
 		    (tick % 12) // 4 + 1
@@ -246,8 +242,8 @@ def print_progress(statuses: list[dict]) -> None:
 			break
 
 		# Go up 1 line at the time and clear it
-		#for i in range(num_lines):
-		#	print(GO_UP, end=CLEAR_LINE)
+		for i in range(num_lines):
+			print(GO_UP, end=CLEAR_LINE)
 
 		# how quickly to refresh the printing
 		time.sleep(0.15)
@@ -359,6 +355,17 @@ def parse_profile_name(args: list[str]) -> str:
 		return "empty"
 
 
+def parse_num_threads(args: list[str]) -> int:
+	try:
+		return int(args[args.index("-n") + 1])
+	except ValueError:
+		# default amount
+		return 12
+	except IndexError:
+		# default amount
+		return 12
+
+
 def parse_file_path(filename: str) -> tuple[str, str, str] | None:
 	# i need to differentiate different parts
 	# extension: to decide if it has to be compiled or not and to name it
@@ -401,12 +408,12 @@ def get_includes(file: str) -> list[str]:
 	return founds
 
 
-def exe_command(command: str, status: dict) -> int:
+def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 	"""
 	execute the given command, set the ouput and return code to the correct structure
 	"""
 
-	g_semaphore.acquire()
+	sem.acquire()
 
 	stream = subprocess.Popen(
 	    command.split(" "),
@@ -425,7 +432,7 @@ def exe_command(command: str, status: dict) -> int:
 	status["errors"] = err
 	status["result"] = ret
 
-	g_semaphore.release()
+	sem.release()
 
 	return ret
 
@@ -476,7 +483,17 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	    "libraries_paths": "",
 
 	    # name of the scripts to execute
-	    "scripts": {}
+	    "scripts": {},
+
+	    # sempahore to limit the number of concurrent threds that can be executed
+	    "semahpore": threading.Semaphore(12),
+
+	    # what to skip when printing
+	    "printing": {
+	        "skip_reports": "none",
+	        "skip_progress": "none",
+	        "colors": True
+	    }
 	}
 
 	# load and parse the file
@@ -792,6 +809,21 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 	threading.Thread(target=exe_command, args=(command, status)).start()
 
 
+def exe_script(name: str, settings: dict):
+	nm = settings["scripts"][name]
+	result = {
+		"result": COMPILATION_STATUS_COMPILING,
+		"name": nm,
+		"output": "",
+		"errors": "",
+		"command": nm
+	}
+	threading.Thread(target=exe_command, args=(f'./{nm}', result)).start()
+	print_progress([result])
+	print("")
+	print_report([result])
+
+
 def create_makefile():
 
 	# TODO: use all possible profiles in the makefile
@@ -886,6 +918,9 @@ def main():
 	# create_makefile()
 	# return
 
+	# ---- cli args parsing ----
+
+	# generate an empty profile
 	if "-gen" in sys.argv:
 		with open("cpp_builder_config.json", "w") as f:
 			f.write(TEMPLATE)
@@ -895,28 +930,38 @@ def main():
 	if "-p" not in sys.argv:
 		print(f"{COLS.FG_RED}You need to specify a profile with '-p'{COLS.RESET}")
 		exit()
+
 	compilation_profile = parse_profile_name(sys.argv)
 
 	# settings is garanteted to have all of the necessary values
 	settings = parse_config_json(compilation_profile)
+
+	if "-n" in sys.argv:
+		settings["num_threads"] = parse_num_threads(sys.argv)
+
+	# printing options
+
+	if "--skip-empty-reports" in sys.argv:
+		settings["printing"]["skip_reports"] = "empty"
+	elif "--skip-warn-reports" in sys.argv:
+		settings["printing"]["skip_reports"] = "warn"
+	elif "--skip-all-reports" in sys.argv:
+		settings["printing"]["skip_reports"] = "all"
+
+	if "--skip-progress" in sys.argv:
+		settings["printing"]["skip_progress"] = "progress"
+	elif "--skip-progress" in sys.argv:
+		settings["printing"]["skip_progress"] = "statuses"
+
+	if "--no-colors" in sys.argv:
+		settings["printing"]["colors"] = True
 
 	# script are executed from the project path
 	os.chdir(settings["project_path"])
 
 	if "pre" in settings["scripts"]:
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
-		nm = settings["scripts"]["pre"]
-		result = {
-		    "result": COMPILATION_STATUS_COMPILING,
-		    "name": nm,
-		    "output": "",
-		    "errors": "",
-		    "command": nm
-		}
-		threading.Thread(target=exe_command, args=(f'./{nm}', result)).start()
-		print_progress([result])
-		print("")
-		print_report([result])
+		exe_script("pre", settings)
 
 	# create file if it does not exist
 	if not os.path.exists(HASH_FILENAME):
@@ -950,18 +995,7 @@ def main():
 
 	if "post" in settings["scripts"]:
 		print("\n", COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
-		nm = settings["scripts"]["post"]
-		result = {
-		    "result": COMPILATION_STATUS_COMPILING,
-		    "name": nm,
-		    "output": "",
-		    "errors": "",
-		    "command": nm
-		}
-		threading.Thread(target=exe_command, args=(f'./{nm}', result)).start()
-		print_progress([result])
-		print("")
-		print_report([result])
+		exe_script("post", settings)
 
 	# do not overwrite the old hashes
 	if "-a" not in sys.argv:
