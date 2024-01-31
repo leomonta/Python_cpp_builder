@@ -593,6 +593,8 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	# name of the final executable
 	settings["exe_path_name"] = get_value(directories_settings, "exe_path_name", "a.out")
 
+	os.makedirs(os.path.dirname(settings["exe_path_name"]), exist_ok=True)
+
 	targets: list[str] = []
 
 	old_dir: str = os.getcwd()
@@ -617,12 +619,16 @@ def parse_config_json(profile: str) -> dict[str, any]:
 		settings["includes"] += " " + settings["specifics"]["include_path"] + Idir
 
 	settings["objects_path"] = get_value(directories_settings, "temp_dir", "obj")
+	os.makedirs(settings["objects_path"], exist_ok=True) # create the obj directory
 
 	# ----- Profiles -----
 
 	del directories_settings
 
 	profile_settings = get_value(config_file, profile, DEFAULT_PROFILE)
+
+	settings["profile"] = profile
+	os.makedirs(settings["objects_path"] + "/" + settings["profile"], exist_ok=True) # create the profile directory
 
 	# --- Libs ---
 	# create the library args -> -lSomelib -lSomelib2 -l...
@@ -725,14 +731,17 @@ def calculate_new_hashes(old_hashes: dict, new_hashes: dict) -> None:
 		new_hashes[file] = make_new_file_hash(file)
 
 
-def load_old_hashes() -> dict[str, str]:
+def load_old_hashes(directory: str) -> dict[str, str]:
 	"""
 	Load in old_hashes the hashes present in files_hash
 	"""
 	hashes: dict[str, str] = {}
 
+	# creates the file
+	if not os.path.exists(directory + HASH_FILENAME):
+		return hashes
 	# read hashes from files and add them to old_hashes array
-	with open(HASH_FILENAME, "r") as f:
+	with open(directory + HASH_FILENAME, "r") as f:
 		while True:
 			data = f.readline()
 			if not data:
@@ -744,6 +753,17 @@ def load_old_hashes() -> dict[str, str]:
 			hashes[temp[0]] = temp[1]
 
 	return hashes
+
+
+def save_new_hashes(new_hashes: dict[str, str], directory: str) -> None:
+	"""
+	Write all the hashes on files_hash
+	"""
+
+	with open(directory + HASH_FILENAME, "w") as f:
+		for i in new_hashes.keys():
+			f.write(i + ":")
+			f.write(new_hashes[i] + "\n")
 
 
 def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, add_incl: list[str]) -> list[str]:
@@ -766,17 +786,6 @@ def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, 
 	return to_compile
 
 
-def save_new_hashes(new_hashes: dict) -> None:
-	"""
-	Write all the hashes on files_hash.txt
-	"""
-
-	with open(HASH_FILENAME, "w") as f:
-		for i in new_hashes.keys():
-			f.write(i + ":")
-			f.write(new_hashes[i] + "\n")
-
-
 def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> None:
 	"""
 	Calls the compiler with the specified arguments
@@ -785,7 +794,7 @@ def compile(to_compile: list[str], settings: dict, compilations: list[dict]) -> 
 	cexe = settings["compiler"]
 	includes = settings["includes"]
 	cargs = settings["cargs"]
-	obj_dir = settings["objects_path"]
+	obj_dir = settings["objects_path"] + "/" + settings["profile"]
 	oargs = settings["specifics"]
 	colors = oargs["force_colors"] if settings["printing"]["colors"] else oargs["no_colors"]
 
@@ -820,7 +829,7 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 	largs = settings["largs"]
 	epn = settings["exe_path_name"]
 	libs = settings["libraries_paths"]
-	obj_dir = settings["objects_path"]
+	obj_dir = settings["objects_path"] + "/" + settings["profile"]
 	oargs = settings["specifics"]
 
 	command = f'{lexe}{largs} {oargs["output_linker"]}{epn}{libs}'
@@ -834,7 +843,6 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	status["name"] = epn
 	status["command"] = command
-	os.makedirs(os.path.dirname(epn), exist_ok=True)
 	threading.Thread(target=exe_command, args=(command, status, settings["semaphore"])).start()
 
 
@@ -908,7 +916,7 @@ def create_makefile():
 
 	make_file += '\nOBJS = '
 	for file in to_compile:
-		make_file += f'{file[0]}{file[1]}.o '
+		make_file += f'$(ObjsDir){file[0]}{file[1]}.o '
 
 	for prof in profiles:
 
@@ -927,18 +935,13 @@ def create_makefile():
 
 		# Debug commands
 
-		make_file += f"\n{prof}-Compile: $(SOURCES)\n"
+		make_file += f"\n{prof}-Compile: $(SOURCES): \n"
 
 		make_file += f"	$(CC) $({prof}-CompilerArgs) $(Includes) -c -o $(ObjsDir)/$(subst /,,$(basename $(SOURCES))).o $(SOURCES)\n"
 
-		make_file += f"\n{prof}-Link: {prof}-Compile\n"
+		make_file += f"\n{prof}-Link: {prof}-Compile \n"
 
-		make_file += f"	$(CC) $({prof}-LinkerArgs) -o $(BinName) $({prof}-LibrariesPaths)"
-
-		for file in to_compile:
-			make_file += f"	$(ObjsDir)/{file[0]}{file[1]}.o"
-
-		make_file += " $({prof}-LibrariesNames)\n"
+		make_file += f"	$(CC) $({prof}-LinkerArgs) -o $(BinName) $({prof}-LibrariesPaths) $(OBJS) $({prof}-LibrariesNames)\n"
 
 		make_file += "\n\n"
 
@@ -955,9 +958,7 @@ def main():
 	# makefile option
 	if "-e" in sys.argv:
 		create_makefile()
-	sys.exit(0)
-
-	# ---- cli args parsing ----
+		sys.exit(0)
 
 	# generate an empty profile
 	if "-gen" in sys.argv:
@@ -1003,17 +1004,14 @@ def main():
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
 		exe_script("pre", settings)
 
-	# create file if it does not exist
-	if not os.path.exists(HASH_FILENAME):
-		f = open(HASH_FILENAME, "w")
-		f.close()
+	hash_path = settings["objects_path"] + "/" + compilation_profile + "/"
 
 	old_hashes: dict = {}
 
 	# by not loading old hashes, all of the files results new
 	if "-a" not in sys.argv:
 		# load old hashes
-		old_hashes = load_old_hashes()
+		old_hashes = load_old_hashes(hash_path)
 
 	new_hashes: dict = {}
 	# obtain new hashes
@@ -1039,7 +1037,7 @@ def main():
 
 	# do not overwrite the old hashes
 	if "-a" not in sys.argv:
-		save_new_hashes(new_hashes)
+		save_new_hashes(new_hashes, hash_path)
 
 
 if __name__ == "__main__":

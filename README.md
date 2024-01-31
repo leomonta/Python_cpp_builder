@@ -17,17 +17,18 @@ Also, I would like to use this same framework for other OSes (Windows), and comp
 A config file (`cpp_builder_config.json`) is always needed, even though i might add a simple empty config file in the builder if none is found,
 The config file is a json because: the key helps explain the what the required info is, it is easily edited by people, and it's widely used for everything
 
+Given the source directories (aka the directories containing source files) it attempts to compile all of the file recognized as source files (aka .c, .cpp. c++ ...) 
 The builder only compiles files that have been modifies from the previous times it was called, to know which files have been modified it computes an hash of the file itself and compares it to a saved copy of the previous compilation (the hashes are stored unceremoniously in `files_hash.txt`)
 This check is also performed recursively for every `#include` the file contain, only the `#include` with the name enclosed int double quptes `"` are checked, since those are usually the one that the programmer writes.
 If an header file has been modified all of the source files that include that header will be recompilated
 
-Different profiles are supported, they are just free floating keys in the root of the config file, that can be used via `-p profileName`.
+Different profiles are supported, they are just free floating keys in the root of the config file, that can be used via `-p profileName`. For each profile a new subdirectory is created in the objects_path folder to contain the object files for that specific profile
 
 ### Process
 
 Checks for cli switches
 
-Loads the files hashes in an array (if the `-a` is not specified)
+Loads the files hashes in an array
 
 Parse the config files and saves the useful data in an internal dict and the requested profile
 > The builder `cd`s in the `project_dir` so all the other dirs should be relative to that one
@@ -66,11 +67,10 @@ This is fixable but I'm probably not going to since it's not that big of a probl
 
 ### The Makefile export fails miserably
 
-The Makefile "exporter" is quite old and needs an update. 
+The Makefile "exporter" is a WIP
 As of now it misses compatibility for
-- Different profiles
-- New setting structure
 - Pre and post scripts
+- compilation of objects files following the different profiles
 - Use of implicit rules (that i don't like though)
 
 ## Options:
