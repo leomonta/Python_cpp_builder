@@ -892,10 +892,10 @@ def create_makefile():
 
 	# variables
 
-	make_file += f'CC={settings["compiler"]}\n'
-	make_file += f'BinName={settings["exe_path_name"]}\n'
-	make_file += f'ObjsDir={settings["objects_path"]}\n'
-	make_file += f'Includes={settings["includes"]}\n'
+	make_file += f'CC = {settings["compiler"]}\n'
+	make_file += f'BinName = {settings["exe_path_name"]}\n'
+	make_file += f'ObjsDir = {settings["objects_path"]}\n'
+	make_file += f'Includes = {settings["includes"]}\n'
 
 	make_file += "\n"
 
@@ -910,13 +910,12 @@ def create_makefile():
 	# get the file needed to compile
 	to_compile = get_to_compile(settings["source_files"], {}, hashes, settings["raw_includes"])
 
-	make_file += 'SOURCES = '
+	make_file += "OBJS = "
 	for file in to_compile:
-		make_file += f'{file[0]}/{file[1]}.{file[2]} '
+		obj_name: str = "".join(file[0].split("/")) + file[1]
+		make_file += f"$(objsDir){obj_name}.o "
 
-	make_file += '\nOBJS = '
-	for file in to_compile:
-		make_file += f'$(ObjsDir){file[0]}{file[1]}.o '
+	make_file += "\n\n"
 
 	for prof in profiles:
 
@@ -927,23 +926,21 @@ def create_makefile():
 		make_file += f'{prof}-CompilerArgs={settings["cargs"]}\n'
 		make_file += f'{prof}-LinkerArgs={settings["largs"]}\n'
 		make_file += f'{prof}-LibrariesPaths={settings["libraries_paths"]}\n'
-		make_file += f'{prof}-LibrariesNames={settings["libraries_names"]}\n'
+		make_file += f'{prof}-LibrariesNames={settings["libraries_names"]}\n\n'
 
-		make_file += "\n\n"
+		compiles = ""
+		for file in to_compile:
+			obj_name: str = "".join(file[0].split("/")) + file[1]
+			compiles += f'compile-{prof}-{obj_name}.o '
+			make_file += f'\ncompile-{prof}-{obj_name}.o:\n'
+			make_file += f"	$(CC) $({prof}-CompilerArgs) $(Includes) -c -o $(ObjsDir)/{obj_name}.o {file[0]}/{file[1]}.{file[2]}\n"
 
-		make_file += f"{prof}: {prof}-Link\n"
-
-		# Debug commands
-
-		make_file += f"\n{prof}-Compile: $(SOURCES): \n"
-
-		make_file += f"	$(CC) $({prof}-CompilerArgs) $(Includes) -c -o $(ObjsDir)/$(subst /,,$(basename $(SOURCES))).o $(SOURCES)\n"
-
-		make_file += f"\n{prof}-Link: {prof}-Compile \n"
+		make_file += f"\n{prof}-Link: {compiles}\n"
 
 		make_file += f"	$(CC) $({prof}-LinkerArgs) -o $(BinName) $({prof}-LibrariesPaths) $(OBJS) $({prof}-LibrariesNames)\n"
 
-		make_file += "\n\n"
+		make_file += f"\n\n{prof}: {prof}-Link\n\n"
+		# Debug commands
 
 	make_file += "\nclean:\n"
 	make_file += "	rm -r $(ObjsDir)/*\n"
