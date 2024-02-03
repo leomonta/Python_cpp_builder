@@ -68,10 +68,8 @@ This is fixable but I'm probably not going to since it's not that big of a probl
 ### The Makefile export fails miserably
 
 The Makefile "exporter" is a WIP
-As of now it misses compatibility for
+As of now it misses compatibility for:
 - Pre and post scripts
-- compilation of objects files following the different profiles
-- Use of implicit rules (that i don't like though)
 
 ## Options:
 
@@ -86,6 +84,7 @@ general options
 	-e                    do not compile and export the `cpp_builder_config` as a Makefile
 	-gen                  writes in the current directory an empty `cpp_builder_config.json` file
 	-n num-of-threads     number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
+	--help                print this screen
 
 printing options
 

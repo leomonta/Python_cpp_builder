@@ -43,12 +43,10 @@ TEMPLATE = """{
 		"linker_exe": "ld"
 	},
 	"directories": {
-		"project_dir": "test",
-		"exe_path_name": "bin/tes",
+		"project_dir": ".",
+		"exe_path_name": "bin/app",
 		"include_dirs": [
-			"include",
-			"/usr/local/include",
-			"ext"
+			"include"
 		],
 		"source_dirs": [
 			"src"
@@ -57,12 +55,11 @@ TEMPLATE = """{
 	},
 
 	"debug": {
-		"compiler_args": "-g3 -fanalyzer -fsanitize=address -Wall",
+		"compiler_args": "-g3 fsanitize=address -Wall",
 		"linker_args": "-fsanitize=address",
 		"libraries_dirs": [
 		],
 		"libraries_names": [
-			"pthread"
 		]
 
 	},
@@ -73,7 +70,6 @@ TEMPLATE = """{
 		"libraries_dirs": [
 		],
 		"libraries_names": [
-			"pthread"
 		]
 	}
 }
