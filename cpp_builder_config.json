@@ -1,6 +1,4 @@
 {
-	"scripts": {
-	},
 	"compiler": {
 		"compiler_style": "gcc",
 		"compiler_exe": "gcc",
@@ -18,27 +16,26 @@
 		"source_dirs": [
 			"src"
 		],
-		"temp_dir": "objs"
+		"temp_dir": "obj"
+	},
+
+	"default": {
+		"libraries_names": [
+			"pthread"
+		]
 	},
 
 	"debug": {
 		"compiler_args": "-g3 -fanalyzer -fsanitize=address -Wall",
-		"linker_args": "-fsanitize=address",
-		"libraries_dirs": [
-		],
-		"libraries_names": [
-			"pthread"
-		]
+		"linker_args": "-fsanitize=address"
 
 	},
 
 	"release": {
 		"compiler_args": "-O2",
 		"linker_args": "-s",
-		"libraries_dirs": [
-		],
-		"libraries_names": [
-			"pthread"
-		]
+		"scripts": {
+			"post": "perform_tests"
+		}
 	}
 }
