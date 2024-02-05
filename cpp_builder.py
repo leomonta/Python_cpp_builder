@@ -22,8 +22,8 @@
 # Done: implicit empty profile if none is specified
 # Done: refactor out global variables (except constants)
 # Done: maximum thread amount
-# TODO: implicit empty configuration if no config file is foun
-# TODO: better setting parsing
+# Done: implicit empty configuration if no config file is foun
+# TODO: better argument parsing
 
 import subprocess # execute command on the cmd / bash / whatever
 import os         # get directories file names
@@ -32,16 +32,16 @@ import hashlib    # for calculating hashes
 import threading  # for threading, duh
 import time       # time.sleep
 import sys        # for arguments parsing
+import copy       # for deep copy
 
 
 TEMPLATE = """{
-	"scripts": {
-	},
 	"compiler": {
 		"compiler_style": "gcc",
 		"compiler_exe": "gcc",
 		"linker_exe": "ld"
 	},
+
 	"directories": {
 		"project_dir": ".",
 		"exe_path_name": "bin/app",
@@ -54,23 +54,18 @@ TEMPLATE = """{
 		"temp_dir": "obj"
 	},
 
-	"debug": {
-		"compiler_args": "-g3 fsanitize=address -Wall",
-		"linker_args": "-fsanitize=address",
+	"default":
+		"compiler_args": "-g3",
+		"linker_args": "",
 		"libraries_dirs": [
 		],
 		"libraries_names": [
-		]
-
-	},
-
-	"release": {
-		"compiler_args": "-O2",
-		"linker_args": "-s",
-		"libraries_dirs": [
 		],
-		"libraries_names": [
-		]
+		"scripts": {
+			"pre": "",
+			"post": "",
+		}
+
 	}
 }
 """
@@ -80,11 +75,15 @@ HASH_FILENAME = "files_hash"
 
 DEFAULT_COMPILER = "gcc"
 
-DEFAULT_PROFILE = {
+EMPTY_PROFILE = {
  "libraries_names": [],
  "libraries_dirs": [],
  "compiler_args": "",
- "linker_args": ""
+ "linker_args": "",
+ "scripts": {
+  "pre": "",
+  "post": ""
+ }
 }
 
 SPINNERS: list[str] = ["|", "/", "-", "\\"]
@@ -215,12 +214,28 @@ PROGRRESS_PREFIXES: list[str] = ["|", "+", "-"]
 PROGRESS_STATUS: list[str] = [f"{COLS.FG_BLUE}Processing", f"{COLS.FG_GREEN}Done", f"{COLS.FG_RED}Failed"]
 
 
-def get_value(dict: any, key: str, val="") -> dict | str:
+def merge(a: dict, b: dict) -> dict:
+	res: dict = {}
+
+	res = copy.deepcopy(b)
+
+	for key in a:
+		if key in res:
+			if isinstance(a[key], dict) and isinstance(res[key], dict):
+				# both dict have the same key
+				res[key] = merge(a[key], res[key])
+		else:
+			res[key] = copy.deepcopy(a[key])
+
+	return res
+
+
+def get_value(d: any, key: str, val="") -> dict | str:
 	"""
 	Tries to get the desired value from the dict, if fails returns val
 	"""
 	try:
-		return dict[key]
+		return d[key]
 	except Exception:
 		return val
 
@@ -539,9 +554,6 @@ def parse_config_json(profile: str) -> dict[str, any]:
 
 	del config_filename
 
-	# --- Scripts settings ---
-	settings["scripts"] = get_value(config_file, "scripts", {})
-
 	# --- Compiler settings ---
 	# get the compiler executable (gcc, g++, clang, rustc, etc)
 	# and the linker executable, plus the type (needed for cli args)
@@ -554,7 +566,6 @@ def parse_config_json(profile: str) -> dict[str, any]:
 
 	# 0 gcc / clang
 	# 1 msvc
-	# 2 rust
 	compiler_type: int = 0
 
 	if settings["type"] == "gcc":
@@ -563,8 +574,6 @@ def parse_config_json(profile: str) -> dict[str, any]:
 		compiler_type = 0
 	elif settings["type"] == "msvc":
 		compiler_type = 1
-	elif settings["type"] == "rustc":
-		compiler_type = 2
 
 	settings["specifics"] = COMPILER_SPECIFIC_ARGS[compiler_type]
 
@@ -609,6 +618,10 @@ def parse_config_json(profile: str) -> dict[str, any]:
 
 	del targets
 
+	#
+	# ---- Incudes ----
+	#
+
 	# create the includes args -> -IInclude -ISomelibrary/include -I...
 	for Idir in get_value(directories_settings, "include_dirs", ["include"]):
 		settings["raw_includes"].append(Idir)
@@ -617,33 +630,47 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	settings["objects_path"] = get_value(directories_settings, "temp_dir", "obj")
 	os.makedirs(settings["objects_path"], exist_ok=True) # create the obj directory
 
-	# ----- Profiles -----
-
 	del directories_settings
 
-	profile_settings = get_value(config_file, profile, DEFAULT_PROFILE)
+	#
+	# ----- Profiles -----
+	#
+
+	default_settings = merge(EMPTY_PROFILE, get_value(config_file, "default", {}))
+
+	profile_settings = merge(default_settings, get_value(config_file, profile, {}))
+
+	# --- Scripts settings ---
+
+	settings["scripts"] = get_value(profile_settings, "scripts", default_settings["scripts"])
 
 	settings["profile"] = profile
 	os.makedirs(settings["objects_path"] + "/" + settings["profile"], exist_ok=True) # create the profile directory
 
+	#
 	# --- Libs ---
+	#
+
 	# create the library args -> -lSomelib -lSomelib2 -l...
-	for lname in get_value(profile_settings, "libraries_names", DEFAULT_PROFILE["libraries_names"]):
+	for lname in get_value(profile_settings, "libraries_names", default_settings["libraries_names"]):
 		settings["libraries_names"] += " " + settings["specifics"]["library_name"] + lname
 
 	# cant be sure if it has been created
 	# del lname
 
 	# create the libraries path args -> -LSomelibrary/lib -L...
-	for ldname in get_value(profile_settings, "libraries_dirs", DEFAULT_PROFILE["libraries_dirs"]):
+	for ldname in get_value(profile_settings, "libraries_dirs", default_settings["libraries_dirs"]):
 		settings["libraries_paths"] += " " + settings["specifics"]["library_path"] + ldname
 
 	# cant be sure if it has been created
 	# del ldname
 
+	#
 	# --- Compiler an Linker arguments ---
-	settings["cargs"] = get_value(profile_settings, "compiler_args", DEFAULT_PROFILE["compiler_args"])
-	settings["largs"] = get_value(profile_settings, "linker_args", DEFAULT_PROFILE["linker_args"])
+	#
+
+	settings["cargs"] = get_value(profile_settings, "compiler_args", default_settings["compiler_args"])
+	settings["largs"] = get_value(profile_settings, "linker_args", default_settings["linker_args"])
 
 	# fix for empty args
 	if settings["cargs"]:
@@ -1004,7 +1031,7 @@ def main():
 	# script are executed from the project path
 	os.chdir(settings["project_path"])
 
-	if "pre" in settings["scripts"]:
+	if settings["scripts"]["pre"] != "":
 		print(COLS.FG_GREEN, " --- Pre Script ---", COLS.RESET)
 		exe_script("pre", settings)
 
@@ -1032,10 +1059,10 @@ def main():
 	if not os.path.exists(settings["objects_path"]):
 		os.makedirs(settings["objects_path"])
 
-	# manages compilation and printing
 	compile_and_command(to_compile, settings)
+	# manages compilation and printing
 
-	if "post" in settings["scripts"]:
+	if settings["scripts"]["post"] != "":
 		print("\n", COLS.FG_GREEN, " --- Post Script ---", COLS.RESET)
 		exe_script("post", settings)
 

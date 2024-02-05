@@ -22,7 +22,109 @@ The builder only compiles files that have been modifies from the previous times 
 This check is also performed recursively for every `#include` the file contain, only the `#include` with the name enclosed int double quptes `"` are checked, since those are usually the one that the programmer writes.
 If an header file has been modified all of the source files that include that header will be recompilated
 
-Different profiles are supported, they are just free floating keys in the root of the config file, that can be used via `-p profileName`. For each profile a new subdirectory is created in the objects_path folder to contain the object files for that specific profile
+Different profiles are supported, they are just free floating keys in the root of the config file, that can be used via `-p profileName`.
+For each profile a new subdirectory is created in the objects_path folder to contain the object files for that specific profile
+
+Profiles are configured with 5 keys, 
+- compiler_args
+- linker_args
+- libraries_dirs
+- libraries_names
+- scripts
+	- pre
+	- post
+
+Each of these key can be specified or not, if a key is not specified (a.k.a. not present), its value will be the default value.
+Default values are empty strings for all of the keys, to overwrite the default value (for all profiles) you can specify a `default` profile.
+
+Examples
+
+```json
+
+	...
+
+	"pname": {
+		"compiler_args": "-g3 -Wall ...",
+		"linker_args": "-s -ltco ...",
+		"libraries_dirs": [
+			"/path/to/library"
+		],
+		"libraries_names": [
+			"pthread",
+			"custom library"
+		],
+		"scripts": {
+			"pre": "clean"
+		}
+	}
+
+	...
+
+```
+
+This profile `pname`, even if not specified, has a `post` and `pre` scripts equals to `""`
+
+```json
+
+	...
+
+	"default": {
+		"scripts": {
+			"pre": "clean"
+		}
+	}
+
+	"pname": {
+		"compiler_args": "-g3 -Wall ...",
+		"linker_args": "-s -ltco ...",
+		"libraries_names": [
+			"pthread",
+			"raylib",
+			"..."
+		],
+		"scripts": {
+		}
+	}
+
+	...
+
+```
+
+This profile `pname` instead has a `post` script equals to `""` and a `pre` script equal to `clean`
+
+
+To prevent inheriting default profile settings you can specify every key with an empty value
+
+```json
+
+	...
+
+	"default": {
+		"scripts": {
+			"pre": "clean"
+		}
+	}
+
+	"pname": {
+		"compiler_args": "-g3 -Wall ...",
+		"linker_args": "-s -ltco ...",
+		"libraries_names": [
+		],
+		"libraries_dirs": [
+			"pthread",
+			"raylib",
+			"..."
+		],
+		"scripts": {
+			"pre" : "",
+			"post" : ""
+		}
+	}
+
+	...
+
+```
+
 
 ### Process
 
@@ -102,10 +204,6 @@ printing options
 
 ```json
 {
-	"scripts": {
-		"pre": "script to execute before the compilation begin",
-		"post": "script to execute after the compilation end"
-	},
 	"compiler" :{
 		"compiler_style": "what kind of compiler is being used (gcc, clang, msvc, rustc)",
 		"compiler_exe": "path to the compiler executable",
@@ -133,7 +231,11 @@ printing options
 		],
 		"libraries_names": [
 			"additional libraries names"
-		]
+		],
+		"scripts": {
+			"pre": "script to execute before the compilation begin",
+			"post": "script to execute after the compilation end"
+		}
 	}
 
 }
