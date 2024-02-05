@@ -2,28 +2,32 @@
 # Building tool for compiling projects source files (maily c/c++)
 # @Author Leonardo Montagner https://github.com/leomonta/Python_cpp_builder
 #
+# Done: retrive include dirs, libs and args from a file
 # Done: compile and link files
-# Done: check for newer version of source files
+# Done: support for debug and optimization compilation, compiler flag and libraries
+# Done: retrive target directories for exe, objects, include and source files
 # Done: skip compilation or linking if there are no new or modified files
-# Done: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
+# Done: if error occurs during compilation stop and return 1
+# Done: if error occurs during linking stop and return 1
 # Done: if a config value is empty prevent double space in cmd agument
 # Done: add a type config value for gcc | msvc so i can decide which cmd args to use -> -o | -Fo
-# Done: add specific linker exec
 # Done: use compiler exec if no linker exec is present
+# Done: check for newer version of source files
 # Done: multithreaded compiling
+# Done: check for newer version of header files (check in every file if that header is included, if it has to be rebuilt)
+# Done: add specific linker exec
 # Done: error and warning coloring in the console
-# Done: if error occurs stop compilation and return 1
-# Done: if error occurs stop linking and return 1
-# Done: retrive include dirs, libs and args from a file
-# Done: retrive target directories for exe, objects, include and source files
-# Done: support for debug and optimization compilation, compiler flag and libraries
 # Done: support for pre and post script
-# Done: support support for any names profile
+# Done: support support for any profile name
 # Done: implicit empty profile if none is specified
 # Done: refactor out global variables (except constants)
-# Done: maximum thread amount
-# Done: implicit empty configuration if no config file is foun
+# Done: maximum thread amount to run at the same time
+# Done: default profile to perform default overrides for each other profile
+# TODO: implicit empty configuration if no config file is found
 # TODO: better argument parsing
+# FIXME: the include chain stops on the first modified include, instead of reporting all of them
+# FIXME: exported makefile does not rely on the default profile
+# FIXME: the makefile prevent make from detecting if the source files have been modified
 
 import subprocess # execute command on the cmd / bash / whatever
 import os         # get directories file names
@@ -110,15 +114,6 @@ COMPILER_SPECIFIC_ARGS: list[dict[str]] = [
   "library_path": "/LIBPATH:",
   "library_name": "",
   "force_colors": "",
- }, {
-  "compile_only": "--emit obj",
-  "output_compiler": "-o ",
-  "output_linker": "-o ",
-  "object_extension": "rs",
-  "include_path": "",
-  "library_path": "-L",
-  "library_name": "-l",
-  "force_colors": "--color=always",
  }
 ]
 
@@ -927,12 +922,14 @@ def create_makefile():
 
 	# variables
 
-	make_file += f'CC       = {settings["compiler"]}\n'
-	make_file += f'BINNAME  = {settings["exe_path_name"]}\n'
-	make_file += f'OBJSDIR  = {settings["objects_path"]}\n'
-	make_file += f'INCLUDES = {settings["includes"]}\n'
+	make_file += f"CC       = {settings['compiler']}\n"
+	make_file += f"BINNAME  = {settings['exe_path_name']}\n"
+	make_file += f"OBJSDIR  = {settings['objects_path']}\n"
+	make_file += f"INCLUDES = {settings['includes']}\n"
 	make_file += "PROFILE  = \n"
-	make_file += "CARGS    = \n\n"
+	make_file += "CARGS    = \n"
+
+	make_file += "\n"
 
 	make_file += "OBJS = \\\n"
 	for file in to_compile:
@@ -948,12 +945,20 @@ def create_makefile():
 
 	make_file += "\n\n"
 
-	make_file += ".SUFFIXES:\n\n"
+	make_file += ".SUFFIXES:\n"
+
+	make_file += "\n"
 
 	make_file += "$(SOURCES):\n"
 	make_file += "	$(CC) $@.cpp $(CARGS) $(INCLUDES) -c -o $(OBJSDIR)/$(PROFILE)/$(subst /,,$@).o\n"
 
 	make_file += "\n\n"
+
+	make_file += "# --- profiles ---\n"
+
+	make_file += "\n\n"
+
+	scripts_used: list[str] = []
 
 	for prof in profiles:
 		PROF = prof.upper()
@@ -961,24 +966,58 @@ def create_makefile():
 		settings = parse_config_json(prof)
 
 		# Profiles
-		make_file += f'# --- {prof} ---\n\n'
-		make_file += f'{PROF}-CARGS    = {settings["cargs"]}\n'
-		make_file += f'{PROF}-LARGS    = {settings["largs"]}\n'
-		make_file += f'{PROF}-LIBPATH  = {settings["libraries_paths"]}\n'
-		make_file += f'{PROF}-LIBNAMES = {settings["libraries_names"]}\n\n'
+		make_file += f"# --- {prof} ---\n"
+		make_file += "\n"
+		make_file += f"{PROF}-CARGS    = {settings['cargs']}\n"
+		make_file += f"{PROF}-LARGS    = {settings['largs']}\n"
+		make_file += f"{PROF}-LIBPATH  = {settings['libraries_paths']}\n"
+		make_file += f"{PROF}-LIBNAMES = {settings['libraries_names']}\n"
+		make_file += "\n\n"
 
 		make_file += f"{prof}-link: PROFILE = {prof}\n"
 		make_file += f"{prof}-link: CARGS = $({PROF}-CARGS)\n"
 		make_file += f"{prof}-link: $(SOURCES)\n"
-
 		make_file += f"	$(CC) $({PROF}-LARGS) -o $(BINNAME) $({PROF}-LIBPATH) $(OBJS) $({PROF}-LIBNAMES)\n"
 
-		make_file += f"\n\n{prof}: {prof}-link\n\n"
-		# Debug commands
+		make_file += "\n"
 
-	make_file += "\nclean:\n"
+		pre_rule = ""
+		post_rule = ""
+
+		if settings["scripts"]["pre"] != "":
+			pre_rule = "{prof}-pre "
+			scripts_used.append(pre_rule)
+			make_file += f"{prof}-pre:\n"
+			make_file += f"	./{settings['scripts']['pre']}\n"
+			make_file += "\n"
+
+		if settings["scripts"]["post"] != "":
+			post_rule = f"{prof}-post"
+			scripts_used.append(post_rule)
+			make_file += f"{prof}-post:\n"
+			make_file += f"	./{settings['scripts']['post']}\n"
+			make_file += "\n"
+
+		make_file += f"{prof}: | {pre_rule}{prof}-link {post_rule}\n"
+
+		make_file += "\n"
+
+	make_file += "\n"
+
+	make_file += "# --- clean ---\n"
+	make_file += "\n"
+
+	make_file += "clean:\n"
 	make_file += "	rm -r $(OBJSDIR)/*\n"
 	make_file += "	rm -r $(BINNAME)\n"
+
+	make_file += "\n\n"
+
+	make_file += ".PHONY: clean "
+	for i in scripts_used:
+		make_file += i
+
+	make_file += "\n"
 
 	with open("Makefile", "w+") as mf:
 		mf.write(make_file)

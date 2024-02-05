@@ -126,7 +126,7 @@ To prevent inheriting default profile settings you can specify every key with an
 ```
 
 
-### Process
+## Process
 
 Checks for cli switches
 
@@ -151,6 +151,28 @@ If the `post` key is present in `scripts` execute the given script
 
 Saves the new hashes that have been generated
 
+
+## Makefile export
+
+The makefile export might look a little 'quirky'
+
+Firstly dumps the general (such as compiler and directories) in specific variables
+Secondly it figures all the source files that will be used and all the object files that will be produced and puts them in their own variables
+
+> even if `PROFILE` is empty it is only substituted when the rules are excetued
+
+The `.SUFFIXES` is needed to prevent any implicit rule form firing
+
+And the rule `$(SOURCES):` is needed to compile object files from the sources
+> the object filename is obtained from the source filename
+
+Each profile has its own variables, and for each profile there is a linking rule and a general rule.
+The general rule calls, if present, any pre or post script at the required time (using the `|` after the `:`).
+The linking rule instead overrides some global variables (`CARGS` and `PROFILE`) to tell the `$(SOURCES)` rule which args and which directory to use when compiling
+
+Lastly the `clean` rule is defined and all of the script rules ( + `clean`) are marked as `.PHONY`
+
+
 ## Known problems
 
 NONE
@@ -167,11 +189,20 @@ This means that when `files_hash.txt` is empty, or simply a minimally complex am
 
 This is fixable but I'm probably not going to since it's not that big of a problem
 
-### The Makefile export fails miserably
+### No autimatic defaults 
 
-The Makefile "exporter" is a WIP
-As of now it misses compatibility for:
-- Pre and post scripts
+The default profile is treated as an actual profile, which may or may not makes sense, and the other profiles do not depend on it.
+This means that modifying the Makefile's default profile does not influence the other profiles.
+
+This can be fixed by checking, at export time, if the profile we are referring to is not the default, and if so, refer to it
+Still, default overrides are performed at export time, thus each individual profile is contructed from the default one
+
+
+### make does not recognize old/new targets
+
+This is beacuse the compilation rule `$(SOURCES)` does not have an extension and does not name a requirement.
+Thus makefile does not know which input produces which output.
+
 
 ## Options:
 
@@ -204,13 +235,13 @@ printing options
 
 ```json
 {
-	"compiler" :{
+	"compiler": {
 		"compiler_style": "what kind of compiler is being used (gcc, clang, msvc, rustc)",
 		"compiler_exe": "path to the compiler executable",
 		"linker_exe": "path to the linker executable"
 	},
 
-	"directories" : {
+	"directories": {
 
 		"project_dir": "project root directory relative to where the cpp_builder is being called",
 		"exe_path_name": "path and name where to put the final executable",
