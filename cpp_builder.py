@@ -837,12 +837,6 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 	Link together all the files that have been compiled with the specified libraries and arguments
 	"""
 
-	to_link: list[str] = []
-
-	for file in settings["source_files"]: # loop trough every file of each directory
-
-		to_link.append(parse_file_path(file))
-
 	lexe = settings["linker"]
 	largs = settings["largs"]
 	epn = settings["exe_path_name"]
@@ -852,10 +846,13 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	command = f'{lexe}{largs} {oargs["output_linker"]}{epn}{libs}'
 
-	for file in to_link:
-		obj_name: str = "".join(file[0].split("/"))
+	for path, subdirs, files in os.walk(obj_dir):
+		for name in files:
+			print(name)
+			file = parse_file_path(name)
+			obj_name: str = "".join(file[0].split("/"))
 
-		command += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
+			command += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
 
 	command += settings["libraries_names"]
 
