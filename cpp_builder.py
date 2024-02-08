@@ -848,7 +848,6 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 
 	for path, subdirs, files in os.walk(obj_dir):
 		for name in files:
-			print(name)
 			file = parse_file_path(name)
 			obj_name: str = "".join(file[0].split("/"))
 
