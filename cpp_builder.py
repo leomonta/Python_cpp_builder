@@ -25,6 +25,7 @@
 # Done: default profile to perform default overrides for each other profile
 # TODO: implicit empty configuration if no config file is found
 # TODO: better argument parsing
+# TODO: use a better tool to get the includes off a file
 # FIXME: the include chain stops on the first modified include, instead of reporting all of them
 # FIXME: exported makefile does not rely on the default profile
 # FIXME: the makefile prevent make from detecting if the source files have been modified
@@ -442,7 +443,7 @@ def get_includes(file: str) -> list[str]:
 		l_no: int
 		for l_no, line in enumerate(fp):
 
-			if "#include" in line:
+			if line.startswith("#include"):
 
 				# first " delimiter
 				first_deli = line.find("\"") + 1
@@ -719,7 +720,10 @@ def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> b
 		add_incl = [parse_file_path(curr)[0]]
 		add_incl.extend(env)
 
-		if to_recompile(inc, old_hashes, new_hashes, add_incl):
+		try:
+			if to_recompile(inc, old_hashes, new_hashes, add_incl):
+				return True
+		except RecursionError:
 			return True
 
 	return False
@@ -849,6 +853,8 @@ def link(to_compile: list[str], settings: dict, status: dict) -> None:
 	for path, subdirs, files in os.walk(obj_dir):
 		for name in files:
 			file = parse_file_path(name)
+			if (file[2] != oargs["object_extension"]):
+				continue
 			obj_name: str = "".join(file[0].split("/"))
 
 			command += f' {obj_dir}/{obj_name}{file[1]}.{oargs["object_extension"]}'
