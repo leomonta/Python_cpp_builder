@@ -122,6 +122,7 @@ COMPILATION_STATUS_COMPILING = 0
 COMPILATION_STATUS_DONE = 1
 COMPILATION_STATUS_FAILED = 2
 
+RECURSION_LIMIT = 50
 
 class COLS:
 	FG_BLACK = "\033[30m"
@@ -466,15 +467,32 @@ def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 
 def get_includes(file: str) -> list[str]:
 
-	# TODO: make this work with msvc with /ShowIncludes (I think)
-
 	founds: list[str] = []
 	# org_path: str = parse_file_path(file)[0]
 
-	stream, out, err = cmd("cpp -MM " + file)
+	# stream, out, err = cmd("cpp -MM " + file)
 
 	# long live functional programming innit
-	founds = list(filter(lambda x: x != "\\", out.split()[2:]))
+	# founds = list(filter(lambda x: x != "\\", out.split()[2:]))
+
+	if os.path.exists(file):
+		return []
+
+	with open(file, "r") as fp:
+		line: str
+		l_no: int
+		for l_no, line in enumerate(fp):
+
+			if line.startswith("#include"):
+
+				# first " delimiter
+				first_deli = line.find("\"") + 1
+				# second " delimiter
+				second_deli = line[first_deli:].find("\"")
+
+				if first_deli > 0:
+					incl = line[first_deli:second_deli + first_deli]
+					founds.append(incl)
 
 	return founds
 
@@ -676,32 +694,55 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	return settings
 
 
-def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> bool:
+def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="", rec=0) -> bool:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
-	or any of its includes has been
+	Or an include chain (God help me this shit is recursive) has been modified
 	"""
 
-	# put the file itself and its includes in one big array
-	candidates = get_includes(filename)
-	candidates.append(filename)
+	# collect all of the includes here
+	includes_directories: list[str]
 
-	# I store the result here so every file / include can be hashed
-	res: bool = False
+	# I need to find the actual path of the file
+	# try only the includes dirs given in the config file
 
-	for file in candidates:
+	includes_directories = [".", ""]
 
-		if file in old_hashes:
-			# the hash has changed
-			if old_hashes[file] != new_hashes[file]:
-				res = True
-		else:
-			# there was no hash to begin with
-			new_hashes[file] = make_new_file_hash(file)
-			res = True
+	# have to do this cus cannot append([]) or extend(str)
+	if isinstance(env, str):
+		env = [env]
 
-	return res
+	includes_directories.extend(env)
+	curr = filename
+
+	for dir in includes_directories:
+		fullname: str = dir + "/" + curr
+		if os.path.isfile(fullname):
+			curr = fullname
+			break
+
+	if curr in old_hashes:
+		if old_hashes[curr] != new_hashes[curr]:
+			return True
+	else:
+		new_hashes[curr] = make_new_file_hash(curr)
+		return True
+
+	# the file is known but not modified
+	# check the includes
+	if rec >= RECURSION_LIMIT:
+		return False
+
+	inc_list = list(dict.fromkeys(get_includes(curr)))
+	for inc in inc_list:
+		add_incl = [parse_file_path(curr)[0]]
+		add_incl.extend(env)
+
+		if to_recompile(inc, old_hashes, new_hashes, add_incl, rec + 1):
+			return True
+
+	return False
 
 
 def make_new_file_hash(file: str) -> str:
@@ -711,9 +752,12 @@ def make_new_file_hash(file: str) -> str:
 	# i need to re-instantiate the object to empty it
 	sha1 = hashlib.sha1()
 
-	# sha1 hash calculation
-	with open(file, "rb") as f:
-		sha1.update(f.read())
+	try:
+		# sha1 hash calculation
+		with open(file, "rb") as f:
+			sha1.update(f.read())
+	except FileNotFoundError:
+		pass
 
 	return sha1.hexdigest() # create the new hash
 
