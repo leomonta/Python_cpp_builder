@@ -466,7 +466,7 @@ def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 
 def get_includes(file: str) -> list[str]:
 
-	#TODO: make this work with msvc with /ShowIncludes (I think)
+	# TODO: make this work with msvc with /ShowIncludes (I think)
 
 	founds: list[str] = []
 	# org_path: str = parse_file_path(file)[0]
@@ -475,8 +475,6 @@ def get_includes(file: str) -> list[str]:
 
 	# long live functional programming innit
 	founds = list(filter(lambda x: x != "\\", out.split()[2:]))
-
-	print(founds)
 
 	return founds
 
@@ -682,51 +680,28 @@ def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="") -> b
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
-	Or an include chain (God help me this shit is recursive) has been modified
+	or any of its includes has been
 	"""
 
-	# collect all of the includes here
-	includes_directories: list[str]
+	# put the file itself and its includes in one big array
+	candidates = get_includes(filename)
+	candidates.append(filename)
 
-	# I need to find the actual path of the file
-	# try only the includes dirs given in the config file
+	# I store the result here so every file / include can be hashed
+	res: bool = False
 
-	includes_directories = [".", ""]
+	for file in candidates:
 
-	# have to do this cus cannot append([]) or extend(str)
-	if isinstance(env, str):
-		env = [env]
+		if file in old_hashes:
+			# the hash has changed
+			if old_hashes[file] != new_hashes[file]:
+				res = True
+		else:
+			# there was no hash to begin with
+			new_hashes[file] = make_new_file_hash(file)
+			res = True
 
-	includes_directories.extend(env)
-	curr = filename
-
-	for dir in includes_directories:
-		fullname: str = dir + "/" + curr
-		if os.path.isfile(fullname):
-			curr = fullname
-			break
-
-	if curr in old_hashes:
-		if old_hashes[curr] != new_hashes[curr]:
-			return True
-	else:
-		new_hashes[curr] = make_new_file_hash(curr)
-		return True
-
-	# the file is known but not modified
-	# check the includes
-
-	for inc in get_includes(curr):
-		add_incl = [parse_file_path(curr)[0]]
-		add_incl.extend(env)
-
-		try:
-			if to_recompile(inc, old_hashes, new_hashes, add_incl):
-				return True
-		except RecursionError:
-			return True
-
-	return False
+	return res
 
 
 def make_new_file_hash(file: str) -> str:
