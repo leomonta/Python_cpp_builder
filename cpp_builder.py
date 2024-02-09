@@ -438,6 +438,7 @@ def get_includes(file: str) -> list[str]:
 
 	founds: list[str] = []
 	# org_path: str = parse_file_path(file)[0]
+	
 	with open(file, "r") as fp:
 		line: str
 		l_no: int
@@ -457,6 +458,12 @@ def get_includes(file: str) -> list[str]:
 	return founds
 
 
+def cmd(command: str) -> [subprocess.Popen, str, str]:
+	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+
+	out, err = stream.communicate() # execute the command and get the result
+
+
 def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 	"""
 	execute the given command, set the ouput and return code to the correct structure
@@ -464,9 +471,7 @@ def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 
 	sem.acquire()
 
-	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
-
-	out, err = stream.communicate() # execute the command and get the result
+	stream, out, err = cmd(command)
 
 	ret = COMPILATION_STATUS_DONE
 	if stream.returncode != 0: # the actual program return code, 0 is ok
