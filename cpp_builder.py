@@ -38,6 +38,7 @@ import threading  # for threading, duh
 import time       # time.sleep
 import sys        # for arguments parsing
 import copy       # for deep copy
+import typing     # for callable
 
 
 TEMPLATE = """{
@@ -123,6 +124,7 @@ COMPILATION_STATUS_DONE = 1
 COMPILATION_STATUS_FAILED = 2
 
 RECURSION_LIMIT = 50
+
 
 class COLS:
 	FG_BLACK = "\033[30m"
@@ -465,34 +467,32 @@ def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 	return ret
 
 
+def multi_thread(func: typing.Callable, ret: list, sem: threading.Semaphore, args: tuple):
+
+	sem.acquire()
+
+	ret[0] = func(*args)
+
+	sem.release()
+
+	ret[1] = True
+
+	return ret
+
+
 def get_includes(file: str) -> list[str]:
+	"""
+	Returns all of the includes included, directly or indirectly, bt the given file
+	"""
 
 	founds: list[str] = []
 	# org_path: str = parse_file_path(file)[0]
 
-	# stream, out, err = cmd("cpp -MM " + file)
+	# TODO: Think about the MSVC children
+	stream, out, err = cmd("cpp -MM " + file)
 
 	# long live functional programming innit
-	# founds = list(filter(lambda x: x != "\\", out.split()[2:]))
-
-	if os.path.exists(file):
-		return []
-
-	with open(file, "r") as fp:
-		line: str
-		l_no: int
-		for l_no, line in enumerate(fp):
-
-			if line.startswith("#include"):
-
-				# first " delimiter
-				first_deli = line.find("\"") + 1
-				# second " delimiter
-				second_deli = line[first_deli:].find("\"")
-
-				if first_deli > 0:
-					incl = line[first_deli:second_deli + first_deli]
-					founds.append(incl)
+	founds = list(filter(lambda x: x != "\\", out.split()[2:]))
 
 	return founds
 
@@ -545,7 +545,7 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	                                          # name of the scripts to execute
 	 "scripts": {},
 
-	                                          # sempahore to limit the number of concurrent threds that can be executed
+	                                          # semaphore to limit the number of concurrent threds that can be executed
 	 "semaphore": threading.Semaphore(12),
 
 	                                          # what to skip when printing
@@ -678,7 +678,7 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	# del ldname
 
 	#
-	# --- Compiler an Linker arguments ---
+	# --- Compiler and Linker arguments ---
 	#
 
 	settings["cargs"] = get_value(profile_settings, "compiler_args", default_settings["compiler_args"])
@@ -694,55 +694,30 @@ def parse_config_json(profile: str) -> dict[str, any]:
 	return settings
 
 
-def to_recompile(filename: str, old_hashes: dict, new_hashes: dict, env="", rec=0) -> bool:
+def to_recompile(filename: str, old_hashes: dict, new_hashes: dict) -> bool | str:
 	"""
 	Given a filename return if it needs to be recompiled
 	A source file needs to be recompiled if it has been modified
-	Or an include chain (God help me this shit is recursive) has been modified
+
+	returns the filename is the file needs to be recompiled, false otherwise
 	"""
 
-	# collect all of the includes here
-	includes_directories: list[str]
+	# get all the includes in one go, and remove any duplicate
+	all_files: list[str] = list(dict.fromkeys(get_includes(filename)))
+	all_files.insert(0, filename)
 
-	# I need to find the actual path of the file
-	# try only the includes dirs given in the config file
+	res = False
 
-	includes_directories = [".", ""]
+	for curr in all_files:
 
-	# have to do this cus cannot append([]) or extend(str)
-	if isinstance(env, str):
-		env = [env]
+		if curr in old_hashes:
+			if old_hashes[curr] != new_hashes[curr]:
+				res = filename
+		else:
+			new_hashes[curr] = make_new_file_hash(curr)
+			res = filename
 
-	includes_directories.extend(env)
-	curr = filename
-
-	for dir in includes_directories:
-		fullname: str = dir + "/" + curr
-		if os.path.isfile(fullname):
-			curr = fullname
-			break
-
-	if curr in old_hashes:
-		if old_hashes[curr] != new_hashes[curr]:
-			return True
-	else:
-		new_hashes[curr] = make_new_file_hash(curr)
-		return True
-
-	# the file is known but not modified
-	# check the includes
-	if rec >= RECURSION_LIMIT:
-		return False
-
-	inc_list = list(dict.fromkeys(get_includes(curr)))
-	for inc in inc_list:
-		add_incl = [parse_file_path(curr)[0]]
-		add_incl.extend(env)
-
-		if to_recompile(inc, old_hashes, new_hashes, add_incl, rec + 1):
-			return True
-
-	return False
+	return res
 
 
 def make_new_file_hash(file: str) -> str:
@@ -807,7 +782,7 @@ def save_new_hashes(new_hashes: dict[str, str], directory: str) -> None:
 			f.write(new_hashes[i] + "\n")
 
 
-def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, add_incl: list[str]) -> list[str]:
+def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, add_incl: list[str], sem: threading.Semaphore) -> list[str]:
 	"""
 	return a list of files and their directories that need to be compiled
 	"""
@@ -816,12 +791,29 @@ def get_to_compile(source_files: list[str], old_hashes: dict, new_hashes: dict, 
 
 	# checking which file need to be compiled
 	file: str = ""
+	rets: list = []
 	for file in source_files: # loop trough every file of each directory
 
 		fname = parse_file_path(file)
 		if fname[2] not in SOURCE_FILES_EXTENSIONS:
 			continue
-		if to_recompile(file, old_hashes, new_hashes, add_incl):
+
+		rets.append([False, False])
+
+		threading.Thread(target=multi_thread, args=(to_recompile, rets[-1], sem, (file, old_hashes, new_hashes))).start()
+
+	exit = False
+	while not exit:
+		exit = True
+
+		for i in rets:
+			if i[1] is False:
+				exit = False
+				break
+
+	for i in rets:
+		if i[0] is not False:
+			fname = parse_file_path(i[0])
 			to_compile.append(fname)
 
 	return to_compile
@@ -937,7 +929,7 @@ def create_makefile():
 	calculate_new_hashes({}, hashes)
 
 	# get the file needed to compile
-	to_compile = get_to_compile(settings["source_files"], {}, hashes, settings["raw_includes"])
+	to_compile = get_to_compile(settings["source_files"], {}, hashes, settings["raw_includes"], settings["semaphore"])
 
 	make_file = ""
 
@@ -1109,7 +1101,7 @@ def main():
 	calculate_new_hashes(old_hashes, new_hashes)
 
 	# get the file needed to compile
-	to_compile = get_to_compile(settings["source_files"], old_hashes, new_hashes, settings["raw_includes"])
+	to_compile = get_to_compile(settings["source_files"], old_hashes, new_hashes, settings["raw_includes"], settings["semaphore"])
 
 	# if to_compile is empty, no need to do anything
 	if not to_compile:
