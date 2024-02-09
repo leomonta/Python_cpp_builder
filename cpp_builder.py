@@ -434,34 +434,12 @@ def parse_file_path(filename: str) -> tuple[str, str, str] | None:
 	return (full_directory, file_name, file_extension)
 
 
-def get_includes(file: str) -> list[str]:
-
-	founds: list[str] = []
-	# org_path: str = parse_file_path(file)[0]
-	
-	with open(file, "r") as fp:
-		line: str
-		l_no: int
-		for l_no, line in enumerate(fp):
-
-			if line.startswith("#include"):
-
-				# first " delimiter
-				first_deli = line.find("\"") + 1
-				# second " delimiter
-				second_deli = line[first_deli:].find("\"")
-
-				if first_deli > 0:
-					incl = line[first_deli:second_deli + first_deli]
-					founds.append(incl)
-
-	return founds
-
-
 def cmd(command: str) -> [subprocess.Popen, str, str]:
 	stream = subprocess.Popen(command.split(" "), stderr=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
 
 	out, err = stream.communicate() # execute the command and get the result
+
+	return stream, out, err
 
 
 def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
@@ -484,6 +462,23 @@ def exe_command(command: str, status: dict, sem: threading.Semaphore) -> int:
 	sem.release()
 
 	return ret
+
+
+def get_includes(file: str) -> list[str]:
+
+	#TODO: make this work with msvc with /ShowIncludes (I think)
+
+	founds: list[str] = []
+	# org_path: str = parse_file_path(file)[0]
+
+	stream, out, err = cmd("cpp -MM " + file)
+
+	# long live functional programming innit
+	founds = list(filter(lambda x: x != "\\", out.split()[2:]))
+
+	print(founds)
+
+	return founds
 
 
 def parse_config_json(profile: str) -> dict[str, any]:
