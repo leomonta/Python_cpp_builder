@@ -213,11 +213,11 @@ These are all of the options that can be passed to the builder
 general options
 
 	-a                    rebuild the entire project
-	-p profile-name       utilize the given profile specifies in the config file
+	-p <profile-name>     utilize the given profile specifies in the config file
 	-e                    do not compile and export the `cpp_builder_config` as a Makefile
-	-gen                  writes in the current directory an empty `cpp_builder_config.json` file
-	-n num-of-threads     number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
-	--help                print this screen
+	--gen                 writes in the current directory an empty `cpp_builder_config.json` file
+	-n <num-of-threads>   number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
+	-h, --help            print this screen
 
 printing options
 

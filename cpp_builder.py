@@ -76,6 +76,30 @@ TEMPLATE = """{
 }
 """
 
+HELP = """Usage: cpp_builder.py -p PROFILE [OPTION]
+   or: cpp_builder.py [--gen | -e | --help | -h]
+
+general options
+
+	-a                    rebuild the entire project
+	-p <profile-name>     utilize the given profile specifies in the config file
+	-e                    do not compile and export the `cpp_builder_config` as a Makefile
+	--gen                 writes in the current directory an empty `cpp_builder_config.json` file
+	-n <num-of-threads>   number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
+	-h, --help            print this screen
+
+printing options
+
+	--skip-empty-reports  do not show reports that are empty
+	--skip-warn-reports   do not show reports that contain only warnings
+	--skip-all-reports    do not show reports
+
+	--skip-progress       do not show the animations for compiling units
+	--skip-statuses       do not show any status for compiling / done / failed compilations
+
+	--no-colors           do not use colors for the output, same for compiler reports
+"""
+
 CONFIG_FILENAME = "cpp_builder_config.json"
 HASH_FILENAME = "files_hash"
 
@@ -1040,7 +1064,21 @@ def main():
 
 	args = sys.argv[1:]
 
-	compile_all = False
+	# makefile option
+	if "-e" in args:
+		create_makefile()
+		exit(0)
+
+	# generate an empty profile
+	if "--gen" in args:
+		with open("cpp_builder_config.json", "w") as f:
+			f.write(TEMPLATE)
+		exit(0)
+
+	if "--help" in args or "-h" in args:
+		print(HELP)
+		exit(0)
+
 	# profile selector
 	if "-p" not in args:
 		print(f"{COLS.FG_RED}You need to specify a profile with '-p'{COLS.RESET}")
@@ -1055,18 +1093,9 @@ def main():
 	# settings is garanteted to have all of the necessary values
 	settings = parse_config_json(compilation_profile)
 
+	compile_all = False
+
 	for arg in args:
-
-		# makefile option
-		if arg == "-e":
-			create_makefile()
-			exit(0)
-
-		# generate an empty profile
-		if arg == "-gen":
-			with open("cpp_builder_config.json", "w") as f:
-				f.write(TEMPLATE)
-			exit(0)
 
 		if "-n" == arg:
 			settings["semaphore"] = threading.Semaphore(parse_num_threads(sys.argv))
@@ -1103,7 +1132,8 @@ def main():
 			continue
 
 		# unknown switches, error
-		print(f"{COLS.FG_RED}Unknown argument {arg}. Exiting{COLS.RESET}")
+		print(f"{COLS.FG_RED}Unknown argument \"{arg}\" Exiting{COLS.RESET}")
+		print(HELP)
 		exit(1)
 
 	# script are executed from the project path
