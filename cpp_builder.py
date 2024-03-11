@@ -24,7 +24,7 @@
 # Done: maximum thread amount to run at the same time
 # Done: default profile to perform default overrides for each other profile
 # TODO: implicit empty configuration if no config file is found
-# TODO: better argument parsing
+# Done: better argument parsing
 # TODO: use a better tool to get the includes off a file
 # FIXME: the include chain stops on the first modified include, instead of reporting all of them
 # FIXME: exported makefile does not rely on the default profile
@@ -404,7 +404,7 @@ def parse_profile_name(args: list[str]) -> str:
 		return args[args.index("-p") + 1]
 	except IndexError:
 		# default profile
-		return "empty"
+		return "default"
 
 
 def parse_num_threads(args: list[str]) -> int:
@@ -1038,47 +1038,73 @@ def create_makefile():
 
 def main():
 
-	# makefile option
-	if "-e" in sys.argv:
-		create_makefile()
-		sys.exit(0)
+	args = sys.argv[1:]
 
-	# generate an empty profile
-	if "-gen" in sys.argv:
-		with open("cpp_builder_config.json", "w") as f:
-			f.write(TEMPLATE)
-		sys.exit(0)
-
+	compile_all = False
 	# profile selector
-	if "-p" not in sys.argv:
+	if "-p" not in args:
 		print(f"{COLS.FG_RED}You need to specify a profile with '-p'{COLS.RESET}")
-		exit()
+		exit(1)
 
-	compilation_profile = parse_profile_name(sys.argv)
+	compilation_profile = parse_profile_name(args)
+
+	indx = args.index("-p")
+	args.pop(indx + 1)
+	args.pop(indx)
 
 	# settings is garanteted to have all of the necessary values
 	settings = parse_config_json(compilation_profile)
 
-	if "-n" in sys.argv:
-		settings["semaphore"] = threading.Semaphore(parse_num_threads(sys.argv))
+	for arg in args:
 
-	# printing options
+		# makefile option
+		if arg == "-e":
+			create_makefile()
+			exit(0)
 
-	if "--skip-empty-reports" in sys.argv:
-		settings["printing"]["skip_reports"] = "empty"
-	if "--skip-warn-reports" in sys.argv:
-		settings["printing"]["skip_reports"] = "warn"
-	if "--skip-all-reports" in sys.argv:
-		settings["printing"]["skip_reports"] = "all"
+		# generate an empty profile
+		if arg == "-gen":
+			with open("cpp_builder_config.json", "w") as f:
+				f.write(TEMPLATE)
+			exit(0)
 
-	if "--skip-progress" in sys.argv:
-		settings["printing"]["skip_progress"] = "progress"
-	elif "--skip-statuses" in sys.argv:
-		settings["printing"]["skip_progress"] = "statuses"
+		if "-n" == arg:
+			settings["semaphore"] = threading.Semaphore(parse_num_threads(sys.argv))
+			continue
+		# printing options
 
-	if "--no-colors" in sys.argv:
-		COLS.erase_all()
-		settings["printing"]["colors"] = False
+		if "--skip-empty-reports" == arg:
+			settings["printing"]["skip_reports"] = "empty"
+			continue
+
+		if "--skip-warn-reports" == arg:
+			settings["printing"]["skip_reports"] = "warn"
+			continue
+
+		if "--skip-all-reports" == arg:
+			settings["printing"]["skip_reports"] = "all"
+			continue
+
+		if "--skip-progress" == arg:
+			settings["printing"]["skip_progress"] = "progress"
+			continue
+
+		if "--skip-statuses" == arg:
+			settings["printing"]["skip_progress"] = "statuses"
+			continue
+
+		if "--no-colors" == arg:
+			COLS.erase_all()
+			settings["printing"]["colors"] = False
+			continue
+
+		if "-a" == arg:
+			compile_all = True
+			continue
+
+		# unknown switches, error
+		print(f"{COLS.FG_RED}Unknown argument {arg}. Exiting{COLS.RESET}")
+		exit(1)
 
 	# script are executed from the project path
 	os.chdir(settings["project_path"])
@@ -1092,7 +1118,7 @@ def main():
 	old_hashes: dict = {}
 
 	# by not loading old hashes, all of the files results new
-	if "-a" not in sys.argv:
+	if not compile_all:
 		# load old hashes
 		old_hashes = load_old_hashes(hash_path)
 
@@ -1119,7 +1145,7 @@ def main():
 		exe_script("post", settings)
 
 	# do not overwrite the old hashes
-	if "-a" not in sys.argv:
+	if not compile_all:
 		save_new_hashes(new_hashes, hash_path)
 
 
