@@ -81,23 +81,23 @@ HELP = """Usage: cpp_builder.py -p PROFILE [OPTION]
 
 general options
 
-	-a                    rebuild the entire project
-	-p <profile-name>     utilize the given profile specifies in the config file
-	-e                    do not compile and export the `cpp_builder_config` as a Makefile
-	--gen                 writes in the current directory an empty `cpp_builder_config.json` file
-	-n <num-of-threads>   number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
-	-h, --help            print this screen
+  -a                    rebuild the entire project
+  -p <profile-name>     utilize the given profile specifies in the config file
+  -e                    do not compile and export the `cpp_builder_config` as a Makefile
+	  --gen                 writes in the current directory an empty `cpp_builder_config.json` file
+  -n <num-of-threads>   number of parallel threads to execute at the same time, default 12, -1 for as many as compilation units
+  -h, --help            print this screen
 
 printing options
 
-	--skip-empty-reports  do not show reports that are empty
-	--skip-warn-reports   do not show reports that contain only warnings
-	--skip-all-reports    do not show reports
+	  --skip-empty-reports  do not show reports that are empty
+	  --skip-warn-reports   do not show reports that contain only warnings
+	  --skip-all-reports    do not show reports
 
-	--skip-progress       do not show the animations for compiling units
-	--skip-statuses       do not show any status for compiling / done / failed compilations
+	  --skip-progress       do not show the animations for compiling units
+	  --skip-statuses       do not show any status for compiling / done / failed compilations
 
-	--no-colors           do not use colors for the output, same for compiler reports
+	  --no-colors           do not use colors for the output, same for compiler reports
 """
 
 CONFIG_FILENAME = "cpp_builder_config.json"
