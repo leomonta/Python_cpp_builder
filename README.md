@@ -1,5 +1,7 @@
 # CPP python building tool
 
+An incremental but simplistic build tool for personal projects
+
 ## Why:
 
 When I started making stuff in c/c++ without an IDE (that compiles for you, VSCode does not) I encountered Makefile, and honestly, I hated it.
